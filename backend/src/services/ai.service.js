@@ -183,27 +183,42 @@ function buildToolHandlers({ userId }) {
       };
     },
 
-    // Lists all active clubs/courses
+    // Lists all active clubs/courses that have at least one future available tee slot
     ListGolfCoursesTool: async () => {
+      const today = todayWIB();
       const { data: clubs, error } = await supabase
         .from('clubs')
         .select('id, name, short_name, location, number_of_holes, par')
+        .eq('active', true)
         .order('name');
 
       if (error) {
         logger.error('ListGolfCoursesTool error', { message: error.message });
         return { courses: [] };
       }
+      if (!clubs || clubs.length === 0) return { courses: [] };
+
+      // Filter to clubs that have at least one future available slot
+      const { data: slotRows } = await supabase
+        .from('tee_slots')
+        .select('club_id')
+        .in('club_id', clubs.map((c) => c.id))
+        .gte('date', today)
+        .eq('available', true);
+
+      const clubIdsWithSlots = new Set((slotRows || []).map((s) => s.club_id));
 
       return {
-        courses: (clubs || []).map((c) => ({
-          id: c.id,
-          name: c.name,
-          short_name: c.short_name,
-          location: c.location,
-          holes: c.number_of_holes,
-          par: c.par,
-        })),
+        courses: clubs
+          .filter((c) => clubIdsWithSlots.has(c.id))
+          .map((c) => ({
+            id: c.id,
+            name: c.name,
+            short_name: c.short_name,
+            location: c.location,
+            holes: c.number_of_holes,
+            par: c.par,
+          })),
       };
     },
 
@@ -231,6 +246,11 @@ function buildToolHandlers({ userId }) {
         .order('time');
 
       if (time) query = query.eq('time', time);
+
+      // Exclude past slots when date is today
+      if (date === todayWIB()) {
+        query = query.gt('time', nowTimeWIB());
+      }
 
       const { data: slots, error } = await query;
       if (error) {
@@ -509,8 +529,6 @@ async function runConversationTurn({
 
     logger.info('confirm_booking intercept', { payload });
 
-    // Always do a fresh DB lookup by club+date+time when available — prevents stale/wrong slot_id issues.
-    // Falls back to payload.slot_id only if lookup fields are missing.
     // Normalize time: strip " WIB" suffix, extract only start time from range ("07:00–07:30" → "07:00"),
     // strip seconds if present ("07:00:00" → "07:00"), ensure 2-digit hour ("7:00" → "07:00").
     const rawTime = (payload.time || '').replace(/\s*WIB$/i, '').trim().split(/[–\-]/)[0].trim().slice(0, 5).replace(/^(\d):/, '0$1:');
@@ -533,35 +551,41 @@ async function runConversationTurn({
 
     // If AI omitted club_id but gave course_name, resolve it now
     if (!resolvedClubId && payload.course_name) {
-      const { data: clubRow } = await supabase
+      const { data: clubRows } = await supabase
         .from('clubs')
         .select('id')
         .ilike('name', `%${payload.course_name}%`)
-        .limit(1)
-        .single();
+        .limit(1);
+      const clubRow = clubRows?.[0];
       if (clubRow) resolvedClubId = clubRow.id;
       logger.info('confirm_booking club_id resolved from course_name', { course_name: payload.course_name, resolved: resolvedClubId });
     }
 
-    let slotId = payload.slot_id;
-    if (resolvedClubId && rawDate && rawTime) {
-      // Fresh lookup by (club_id, date, time) — authoritative, avoids stale/hallucinated slot_id
-      const { data: foundSlot, error: lookupErr } = await supabase
-        .from('tee_slots')
-        .select('id, available')
-        .eq('club_id', resolvedClubId)
-        .eq('date', rawDate)
-        .eq('time', rawTime)
-        .maybeSingle();
-      logger.info('confirm_booking slot lookup', {
-        club_id: resolvedClubId, date: rawDate, time: rawTime,
-        payload_slot_id: payload.slot_id,
-        found: foundSlot?.id ?? null,
-        available: foundSlot?.available ?? null,
-        lookupErr: lookupErr?.message ?? null,
-      });
-      if (foundSlot) slotId = foundSlot.id;
+    // Priority 1: slot_id from payload — AI copied this UUID directly from CheckAvailabilityTool result.
+    // This is the most reliable source. createBooking() will validate availability.
+    let slotId = payload.slot_id || null;
+
+    // Priority 2: coordinate lookup — only when slot_id is missing.
+    // time column is text; try both HH:MM and HH:MM:SS formats since either may be stored.
+    if (!slotId && resolvedClubId && rawDate && rawTime) {
+      for (const t of [rawTime, `${rawTime}:00`]) {
+        const { data: found, error: lookupErr } = await supabase
+          .from('tee_slots')
+          .select('id, available')
+          .eq('club_id', resolvedClubId)
+          .eq('date', rawDate)
+          .eq('time', t)
+          .maybeSingle();
+        logger.info('confirm_booking coordinate lookup', {
+          club_id: resolvedClubId, date: rawDate, time: t,
+          found: found?.id ?? null, available: found?.available ?? null,
+          lookupErr: lookupErr?.message ?? null,
+        });
+        if (found) { slotId = found.id; break; }
+      }
     }
+
+    logger.info('confirm_booking resolved slot', { payload_slot_id: payload.slot_id, resolved_slot_id: slotId });
 
     if (!slotId) {
       return {
