@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd frontend && bun run build",
-  "outputDirectory": "frontend/.vercel/output",
-  "installCommand": "cd frontend && bun install",
+  "buildCommand": "bun run build",
+  "outputDirectory": ".vercel/output",
+  "installCommand": "bun install",
   "framework": null,
   "build": {
     "env": {
