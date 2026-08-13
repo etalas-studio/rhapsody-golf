@@ -1,0 +1,622 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  golfer
+  club_admin
+  superadmin
+}
+
+enum ServicePolicy {
+  optional
+  included
+  mandatory
+}
+
+enum AppType {
+  RhapsodyOnly
+  ClubBranded
+}
+
+enum IntegrationHealth {
+  Online
+  Warning
+  Offline
+}
+
+enum MembershipStatus {
+  PaidMember
+  Visitor
+  TournamentParticipant
+  Inactive
+}
+
+enum MembershipType {
+  Gold
+  Silver
+  Platinum
+  None
+}
+
+enum BookingStatus {
+  Confirmed
+  CheckedIn
+  Completed
+  Cancelled
+  NoShow
+}
+
+enum GameType {
+  Casual
+  Tournament
+  Practice
+}
+
+enum PaymentStatus {
+  Pending
+  Paid
+  Failed
+  Refunded
+}
+
+enum SettlementStatus {
+  Settled
+  PendingSettlement
+  Failed
+}
+
+enum PaymentMethodType {
+  CreditCard
+  QRIS
+  EWallet
+  Voucher
+  LoyaltyPoints
+  MemberAccount
+}
+
+enum PaymentCategory {
+  GreenFee
+  Cart
+  Caddie
+  FAndB
+  ProShop
+  Tournament
+}
+
+enum LoyaltyTransactionType {
+  Earn
+  Redeem
+  Bonus
+  Adjust
+}
+
+enum VoucherStatus {
+  Active
+  Redeemed
+  Expired
+  Cancelled
+}
+
+enum VoucherType {
+  GreenFee
+  FAndB
+  Cart
+  ProShop
+}
+
+enum DiscountType {
+  Percentage
+  FixedAmount
+}
+
+enum CampaignType {
+  Voucher
+  Discount
+  BonusPoints
+  TournamentInvitation
+  FAndBPromo
+}
+
+enum CampaignStatus {
+  Draft
+  Active
+  Ended
+}
+
+enum TournamentStatus {
+  Open
+  RegistrationClosed
+  Finished
+}
+
+enum TournamentRegStatus {
+  Registered
+  Waitlist
+  Confirmed
+  CheckedIn
+  Completed
+  Cancelled
+}
+
+enum ChatMessageRole {
+  user
+  assistant
+  tool_result
+}
+
+enum ChatSessionState {
+  IDLE
+  CHECK_AVAILABILITY
+  BOOKED
+  WAITING_PAYMENT
+  DONE
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+model Club {
+  id            String        @id @default(cuid())
+  name          String
+  shortName     String        @map("short_name")
+  // Club contact info
+  location      String?
+  region        String?
+  address       String?
+  phone         String?
+  email         String?
+  operatingHours String?      @map("operating_hours")
+  mapsUrl       String?       @map("maps_url")
+  logoUrl       String?       @map("logo_url")
+  imageUrls     String[]      @default([]) @map("image_urls")
+  themeColor    String        @map("theme_color")
+  appType       AppType       @map("app_type")
+  // Course info (1 club = 1 course for MVP)
+  description   String?
+  facilities    String[]      @default([])
+  establishedIn Int?          @map("established_in")
+  numberOfHoles Int           @default(18) @map("number_of_holes")
+  par           Int           @default(72)
+  lengthYards   Int?          @map("length_yards")
+  courseRating  Float?        @map("course_rating")
+  slopeRating   Float?        @map("slope_rating")
+  // Pricing & services
+  startingPrice Int           @default(0) @map("starting_price")
+  rating        Float         @default(0)
+  cartPolicy    ServicePolicy @default(optional) @map("cart_policy")
+  cartFee       Int           @default(0) @map("cart_fee")
+  caddiePolicy  ServicePolicy @default(optional) @map("caddie_policy")
+  caddieFee     Int           @default(0) @map("caddie_fee")
+  // Tee time config
+  teeIntervalMinutes    Int    @default(30)      @map("tee_interval_minutes")
+  earlyStart            String @default("06:00") @map("early_start")
+  earlyEnd              String @default("10:30") @map("early_end")
+  earlyDefaultPrice     Int    @default(1250000) @map("early_default_price")
+  primeStart            String @default("11:00") @map("prime_start")
+  primeEnd              String @default("13:30") @map("prime_end")
+  primeDefaultPrice     Int    @default(1450000) @map("prime_default_price")
+  twilightStart         String @default("14:00") @map("twilight_start")
+  twilightEnd           String @default("16:30") @map("twilight_end")
+  twilightDefaultPrice  Int    @default(1100000) @map("twilight_default_price")
+  active        Boolean       @default(false)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  members        ClubMember[]
+  bookings       Booking[]
+  payments       PaymentTransaction[]
+  loyaltyEntries LoyaltyEntry[]
+  loyaltyRules   LoyaltyRule?
+  vouchers       Voucher[]
+  campaigns      Campaign[]
+  scorecards     Scorecard[]
+  tournaments    Tournament[]
+  teeSlots       TeeSlot[]
+  integration    ClubIntegration?
+  brandingConfig ClubBrandingConfig?
+  auditLogs      AuditLog[]
+  admins         ClubAdmin[]
+
+  @@map("clubs")
+}
+
+model ClubAdmin {
+  id     String @id @default(cuid())
+  clubId String @map("club_id")
+  userId String @unique @map("user_id")
+
+  club Club @relation(fields: [clubId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("club_admins")
+}
+
+model User {
+  id              String    @id @default(cuid())
+  authId          String    @unique @map("auth_id")
+  rhapsodyId      String    @unique @map("rhapsody_id")
+  name            String
+  phone           String?
+  email           String    @unique
+  handicapIndex   Float     @default(54.0) @map("handicap_index")
+  handicapUpdated DateTime? @map("handicap_updated")
+  role            Role      @default(golfer)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  clubMemberships ClubMember[]
+  bookings        Booking[]
+  payments        PaymentTransaction[]
+  loyaltyEntries  LoyaltyEntry[]
+  vouchers            Voucher[]
+  voucherRedemptions  VoucherRedemption[]
+  scorecards          Scorecard[]
+  tournamentRegs      TournamentRegistration[]
+  paymentMethods      PaymentMethod[]
+  auditLogs           AuditLog[]
+  clubAdmin           ClubAdmin?
+  chatSessions        ChatSession[]
+
+  @@map("users")
+}
+
+model ClubMember {
+  id               String           @id @default(cuid())
+  clubId           String           @map("club_id")
+  userId           String           @map("user_id")
+  clubMemberId     String?          @map("club_member_id")
+  membershipStatus MembershipStatus @default(Visitor) @map("membership_status")
+  membershipType   MembershipType   @default(None) @map("membership_type")
+  startDate        DateTime         @map("start_date")
+  expiryDate       DateTime?        @map("expiry_date")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  club Club @relation(fields: [clubId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([clubId, userId])
+  @@map("club_members")
+}
+
+model Booking {
+  id            String        @id @default(cuid())
+  clubId        String        @map("club_id")
+  userId        String        @map("user_id")
+  teeTime       DateTime      @map("tee_time")
+  players       Int
+  status           BookingStatus @default(Confirmed)
+  subtotal         Int           @default(0)
+  discountAmount   Int           @default(0) @map("discount_amount")
+  voucherId        String?       @map("voucher_id")
+  amount           Int
+  paymentStatus    PaymentStatus @default(Pending) @map("payment_status")
+  partners         String[]      @default([])
+  gameType         GameType      @default(Casual) @map("game_type")
+  tournamentId     String?       @map("tournament_id")
+  channelTag       String        @default("GH_APP") @map("channel_tag")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  club        Club               @relation(fields: [clubId], references: [id])
+  user        User               @relation(fields: [userId], references: [id])
+  tournament  Tournament?        @relation(fields: [tournamentId], references: [id])
+  voucher     Voucher?           @relation(fields: [voucherId], references: [id])
+  visit       Visit?
+  payments    PaymentTransaction[]
+  redemption  VoucherRedemption?
+
+  @@map("bookings")
+}
+
+model Visit {
+  id          String        @id @default(cuid())
+  clubId      String        @map("club_id")
+  userId      String        @map("user_id")
+  bookingId   String        @unique @map("booking_id")
+  checkInTime DateTime      @map("check_in_time")
+  status      BookingStatus
+
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@map("visits")
+}
+
+model PaymentTransaction {
+  id                String            @id @default(cuid())
+  clubId            String            @map("club_id")
+  userId            String            @map("user_id")
+  bookingId         String?           @map("booking_id")
+  amount            Int
+  paymentMethodType PaymentMethodType @map("payment_method_type")
+  transactionStatus PaymentStatus     @default(Pending) @map("transaction_status")
+  referenceNumber   String            @unique @map("reference_number")
+  settlementStatus  SettlementStatus  @default(PendingSettlement) @map("settlement_status")
+  category          PaymentCategory
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  club    Club     @relation(fields: [clubId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}
+
+model PaymentMethod {
+  id        String            @id @default(cuid())
+  userId    String            @map("user_id")
+  type      PaymentMethodType
+  label     String
+  isDefault Boolean           @default(false) @map("is_default")
+  tokenized Boolean           @default(true)
+  createdAt DateTime          @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("payment_methods")
+}
+
+model LoyaltyEntry {
+  id              String                 @id @default(cuid())
+  clubId          String?                @map("club_id")
+  userId          String                 @map("user_id")
+  points          Int
+  transactionType LoyaltyTransactionType @map("transaction_type")
+  description     String
+  createdAt       DateTime               @default(now()) @map("created_at")
+
+  club Club? @relation(fields: [clubId], references: [id])
+  user User  @relation(fields: [userId], references: [id])
+
+  @@map("loyalty_ledger")
+}
+
+model LoyaltyRule {
+  id                   String  @id @default(cuid())
+  clubId               String  @unique @map("club_id")
+  ptsPerSpending       Int     @default(1) @map("pts_per_spending")
+  bonusPerVisit        Int     @default(0) @map("bonus_per_visit")
+  weekdayMultiplier    Float   @default(1.0) @map("weekday_multiplier")
+  birthdayRewardPts    Int     @default(0) @map("birthday_reward_pts")
+  tierUpgradeThreshold Int     @default(5000) @map("tier_upgrade_threshold")
+  enableSpending       Boolean @default(true) @map("enable_spending")
+  enableVisit          Boolean @default(false) @map("enable_visit")
+  enableWeekday        Boolean @default(false) @map("enable_weekday")
+  enableBirthday       Boolean @default(false) @map("enable_birthday")
+  enableTier           Boolean @default(false) @map("enable_tier")
+
+  club Club @relation(fields: [clubId], references: [id])
+
+  @@map("loyalty_rules")
+}
+
+model Voucher {
+  id               String        @id @default(cuid())
+  clubId           String        @map("club_id")
+  userId           String?       @map("user_id")
+  voucherCode      String        @unique @map("voucher_code")
+  title            String
+  description      String?
+  discountType     DiscountType  @map("discount_type")
+  discountValue    Int           @map("discount_value")
+  maxDiscountCap   Int?          @map("max_discount_cap")
+  type             VoucherType
+  status           VoucherStatus @default(Active)
+  quota            Int
+  usedCount        Int           @default(0) @map("used_count")
+  startsAt         DateTime      @map("starts_at")
+  expiryDate       DateTime      @map("expiry_date")
+  minBookingAmount Int?          @map("min_booking_amount")
+  isPublic         Boolean       @default(false) @map("is_public")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  club        Club                @relation(fields: [clubId], references: [id])
+  user        User?               @relation(fields: [userId], references: [id])
+  redemptions VoucherRedemption[]
+
+  @@map("vouchers")
+}
+
+model VoucherRedemption {
+  id         String   @id @default(cuid())
+  voucherId  String   @map("voucher_id")
+  userId     String   @map("user_id")
+  bookingId  String   @unique @map("booking_id")
+  redeemedAt DateTime @default(now()) @map("redeemed_at")
+
+  voucher Voucher @relation(fields: [voucherId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+  booking Booking @relation(fields: [bookingId], references: [id])
+
+  @@unique([voucherId, userId])
+  @@map("voucher_redemptions")
+}
+
+model Campaign {
+  id              String         @id @default(cuid())
+  clubId          String         @map("club_id")
+  title           String
+  targetSegment   String         @map("target_segment")
+  campaignType    CampaignType   @map("campaign_type")
+  status          CampaignStatus @default(Draft)
+  redemptionCount Int            @default(0) @map("redemption_count")
+  reach           Int            @default(0)
+  startsAt        DateTime       @map("starts_at")
+  endsAt          DateTime       @map("ends_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  club Club @relation(fields: [clubId], references: [id])
+
+  @@map("campaigns")
+}
+
+model Scorecard {
+  id         String   @id @default(cuid())
+  clubId     String   @map("club_id")
+  userId     String   @map("user_id")
+  date       DateTime @db.Date
+  score      Int
+  courseName String   @map("course_name")
+  strokes    Int[]
+  pars       Int[]
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  club Club @relation(fields: [clubId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("scorecards")
+}
+
+model Tournament {
+  id                   String           @id @default(cuid())
+  clubId               String           @map("club_id")
+  title                String
+  date                 DateTime
+  status               TournamentStatus @default(Open)
+  participants         Int              @default(0)
+  maxParticipants      Int              @map("max_participants")
+  fee                  Int
+  format               String
+  description          String
+  registrationDeadline DateTime         @map("registration_deadline")
+  shotgunTime          String           @map("shotgun_time")
+  prizePool            String           @map("prize_pool")
+  rules                String[]
+  includes             String[]
+  contact              String
+  schedule             Json
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  club          Club                     @relation(fields: [clubId], references: [id])
+  registrations TournamentRegistration[]
+  bookings      Booking[]
+
+  @@map("tournaments")
+}
+
+model TournamentRegistration {
+  id            String              @id @default(cuid())
+  tournamentId  String              @map("tournament_id")
+  userId        String              @map("user_id")
+  status        TournamentRegStatus @default(Registered)
+  registeredAt  DateTime            @default(now()) @map("registered_at")
+  flight        String?
+  teeTime       String?             @map("tee_time")
+  position      Int?
+  score         Int?
+  paymentStatus PaymentStatus       @default(Pending) @map("payment_status")
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  user       User       @relation(fields: [userId], references: [id])
+
+  @@unique([tournamentId, userId])
+  @@map("tournament_registrations")
+}
+
+model TeeSlot {
+  id        String   @id @default(cuid())
+  clubId    String   @map("club_id")
+  date      DateTime @db.Date
+  time      String
+  available Boolean  @default(true)
+  price     Int
+
+  club Club @relation(fields: [clubId], references: [id])
+
+  @@unique([clubId, date, time])
+  @@map("tee_slots")
+}
+
+model ClubIntegration {
+  id             String            @id @default(cuid())
+  clubId         String            @unique @map("club_id")
+  membershipSync IntegrationHealth @default(Offline) @map("membership_sync")
+  teesheetSync   IntegrationHealth @default(Offline) @map("teesheet_sync")
+  posSync        IntegrationHealth @default(Offline) @map("pos_sync")
+  paymentSync    IntegrationHealth @default(Offline) @map("payment_sync")
+  loyaltySync    IntegrationHealth @default(Offline) @map("loyalty_sync")
+  membershipLast DateTime?         @map("membership_last")
+  teesheetLast   DateTime?         @map("teesheet_last")
+  posLast        DateTime?         @map("pos_last")
+  paymentLast    DateTime?         @map("payment_last")
+  loyaltyLast    DateTime?         @map("loyalty_last")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  club Club @relation(fields: [clubId], references: [id])
+
+  @@map("club_integrations")
+}
+
+model ClubBrandingConfig {
+  id           String  @id @default(cuid())
+  clubId       String  @unique @map("club_id")
+  displayName  String  @map("display_name")
+  themeColor   String  @map("theme_color")
+  logoPath     String? @map("logo_path")
+  bannerPath   String? @map("banner_path")
+  termsUrl     String? @map("terms_url")
+  ftBooking    Boolean @default(true) @map("ft_booking")
+  ftPayment    Boolean @default(true) @map("ft_payment")
+  ftLoyalty    Boolean @default(true) @map("ft_loyalty")
+  ftVoucher    Boolean @default(true) @map("ft_voucher")
+  ftTournament Boolean @default(true) @map("ft_tournament")
+  ftShopping   Boolean @default(false) @map("ft_shopping")
+
+  club Club @relation(fields: [clubId], references: [id])
+
+  @@map("club_branding_configs")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String   @map("actor_user_id")
+  actorName   String   @map("actor_name")
+  role        Role
+  action      String
+  clubId      String?  @map("club_id")
+  ip          String
+  timestamp   DateTime @default(now())
+
+  actor User  @relation(fields: [actorUserId], references: [id])
+  club  Club? @relation(fields: [clubId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model ChatSession {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  state     ChatSessionState @default(IDLE)
+  messages  Json
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id])
+  chatMsgs ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String          @id @default(cuid())
+  sessionId String          @map("session_id")
+  role      ChatMessageRole
+  content   String
+  metadata  Json?
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  session ChatSession @relation(fields: [sessionId], references: [id])
+
+  @@map("chat_messages")
+}

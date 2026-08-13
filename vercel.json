@@ -1,0 +1,11 @@
+{
+  "buildCommand": "cd frontend && bun run build",
+  "outputDirectory": "frontend/.vercel/output",
+  "installCommand": "cd frontend && bun install",
+  "framework": null,
+  "build": {
+    "env": {
+      "NITRO_PRESET": "vercel"
+    }
+  }
+}
