@@ -552,7 +552,7 @@ async function runConversationTurn({
         .eq('club_id', resolvedClubId)
         .eq('date', rawDate)
         .eq('time', rawTime)
-        .single();
+        .maybeSingle();
       logger.info('confirm_booking slot lookup', {
         club_id: resolvedClubId, date: rawDate, time: rawTime,
         payload_slot_id: payload.slot_id,

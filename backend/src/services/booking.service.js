@@ -72,11 +72,12 @@ async function createBooking({
   channelTag = CHANNEL_TAG,
 }) {
   // 1. Fetch slot — verify still available
+  if (!slotId) throw new Error('Slot ID missing — booking cannot proceed');
   const { data: slot, error: slotErr } = await supabase
     .from('tee_slots')
     .select('id, club_id, date, time, end_time, price, available')
     .eq('id', slotId)
-    .single();
+    .maybeSingle();
 
   if (slotErr || !slot) throw new Error(slotErr ? `Tee slot lookup failed: ${slotErr.message}` : `Tee slot not found (id: ${slotId})`);
   if (!slot.available) throw new Error('Slot no longer available');
