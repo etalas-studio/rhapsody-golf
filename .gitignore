@@ -28,6 +28,10 @@ frontend/.tanstack/**
 frontend/.wrangler/
 .dev.vars
 
+# Vercel build output (generated during deploy, not committed)
+.vercel/
+frontend/.vercel/
+
 # Env files — never commit real secrets
 .env
 frontend/.env
