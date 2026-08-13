@@ -78,7 +78,7 @@ async function createBooking({
     .eq('id', slotId)
     .single();
 
-  if (slotErr || !slot) throw new Error('Tee slot not found');
+  if (slotErr || !slot) throw new Error(slotErr ? `Tee slot lookup failed: ${slotErr.message}` : `Tee slot not found (id: ${slotId})`);
   if (!slot.available) throw new Error('Slot no longer available');
 
   // 2. Fetch user details for Midtrans customer info
@@ -134,7 +134,7 @@ async function createBooking({
 
   // 6. Build tee datetime — column is timestamp without time zone, store literal WIB (no offset)
   const teeTime = `${slot.date}T${slot.time}:00`;
-  const teeEndTime = slot.end_time ?? null; // snapshot from slot at booking time
+  const teeEndTime = slot.end_time ?? null;
 
   // 7. Insert booking — slot locked immediately
   const { randomUUID } = require('crypto');

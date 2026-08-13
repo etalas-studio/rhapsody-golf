@@ -11,9 +11,10 @@ import { cn } from "@/lib/utils";
 
 /** Renders AI reply text: newlines preserved, **bold** supported. */
 function ChatText({ text }: { text: string }) {
+  const decoded = text.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
   return (
     <span className="whitespace-pre-line">
-      {text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+      {decoded.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
         part.startsWith("**") && part.endsWith("**")
           ? <strong key={i}>{part.slice(2, -2)}</strong>
           : part
@@ -79,7 +80,7 @@ const WELCOME: Message = {
   id: 0,
   role: "assistant",
   kind: "text",
-  text: "Halo! Saya asisten booking Rhapsody. Mau booking tee time di mana?",
+  text: "Halo! Saya asisten booking Rhapsody Golf Connect. Mau booking tee time?",
 };
 
 // ─── Bubble components ────────────────────────────────────────────────────────

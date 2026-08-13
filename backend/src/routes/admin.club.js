@@ -455,6 +455,11 @@ router.post('/generate-tee-slots', async (req, res) => {
 
   function toMins(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
 
+  function addMins(t, mins) {
+    const total = toMins(t) + mins;
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  }
+
   function priceFor(timeStr) {
     const mins = toMins(timeStr);
     for (const b of Object.values(bands)) {
@@ -478,7 +483,7 @@ router.post('/generate-tee-slots', async (req, res) => {
     dt.setDate(start.getDate() + d);
     const date = dt.toISOString().slice(0, 10);
     for (const time of allTimes) {
-      rows.push({ id: randomUUID(), club_id: clubId, date, time, price: priceFor(time), available: true });
+      rows.push({ id: randomUUID(), club_id: clubId, date, time, end_time: addMins(time, intervalMins), price: priceFor(time), available: true });
     }
   }
 

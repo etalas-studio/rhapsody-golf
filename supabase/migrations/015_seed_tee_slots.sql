@@ -12,26 +12,30 @@ declare
   times_prime  text[] := array['11:00','11:30','12:00','12:30','13:00','13:30'];
   times_twilight text[] := array['14:00','14:30','15:00','15:30','16:00','16:30'];
   t text;
+  t_end text;
 begin
-  for club_row in select id from public.clubs loop
+  for club_row in select id, tee_interval_minutes from public.clubs loop
     for d in select generate_series(current_date, current_date + interval '60 days', interval '1 day')::date loop
       -- Early band: Rp 1,250,000
       foreach t in array times_early loop
-        insert into public.tee_slots (id, club_id, date, time, price, available)
-        values (gen_random_uuid()::text, club_row.id, d, t, 1250000, true)
-        on conflict (club_id, date, time) do update set price = excluded.price, available = true;
+        t_end := to_char((t::time + (club_row.tee_interval_minutes || ' minutes')::interval), 'HH24:MI');
+        insert into public.tee_slots (id, club_id, date, time, end_time, price, available)
+        values (gen_random_uuid()::text, club_row.id, d, t, t_end, 1250000, true)
+        on conflict (club_id, date, time) do update set price = excluded.price, available = true, end_time = excluded.end_time;
       end loop;
       -- Prime band: Rp 1,450,000
       foreach t in array times_prime loop
-        insert into public.tee_slots (id, club_id, date, time, price, available)
-        values (gen_random_uuid()::text, club_row.id, d, t, 1450000, true)
-        on conflict (club_id, date, time) do update set price = excluded.price, available = true;
+        t_end := to_char((t::time + (club_row.tee_interval_minutes || ' minutes')::interval), 'HH24:MI');
+        insert into public.tee_slots (id, club_id, date, time, end_time, price, available)
+        values (gen_random_uuid()::text, club_row.id, d, t, t_end, 1450000, true)
+        on conflict (club_id, date, time) do update set price = excluded.price, available = true, end_time = excluded.end_time;
       end loop;
       -- Twilight band: Rp 1,100,000
       foreach t in array times_twilight loop
-        insert into public.tee_slots (id, club_id, date, time, price, available)
-        values (gen_random_uuid()::text, club_row.id, d, t, 1100000, true)
-        on conflict (club_id, date, time) do update set price = excluded.price, available = true;
+        t_end := to_char((t::time + (club_row.tee_interval_minutes || ' minutes')::interval), 'HH24:MI');
+        insert into public.tee_slots (id, club_id, date, time, end_time, price, available)
+        values (gen_random_uuid()::text, club_row.id, d, t, t_end, 1100000, true)
+        on conflict (club_id, date, time) do update set price = excluded.price, available = true, end_time = excluded.end_time;
       end loop;
     end loop;
   end loop;

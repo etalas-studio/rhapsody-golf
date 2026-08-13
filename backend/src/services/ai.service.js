@@ -209,10 +209,10 @@ function buildToolHandlers({ userId }) {
 
     // Checks tee slot availability for a course + date
     CheckAvailabilityTool: async ({ course_name, date, time }) => {
-      // Resolve club by name (partial match, case-insensitive)
+      // Resolve club by name (partial match, case-insensitive) — include interval for end_time fallback
       const { data: clubs } = await supabase
         .from('clubs')
-        .select('id, name')
+        .select('id, name, tee_interval_minutes')
         .ilike('name', `%${course_name || ''}%`)
         .limit(3);
 
@@ -220,10 +220,11 @@ function buildToolHandlers({ userId }) {
         return { slots: [], alternatives: [], error: 'Course not found' };
       }
       const club = clubs[0];
+      const intervalMins = club.tee_interval_minutes ?? 30;
 
       let query = supabase
         .from('tee_slots')
-        .select('id, time, price, available')
+        .select('id, time, end_time, price, available')
         .eq('club_id', club.id)
         .eq('date', date)
         .eq('available', true)
@@ -237,14 +238,26 @@ function buildToolHandlers({ userId }) {
         return { slots: [], alternatives: [] };
       }
 
+      // Compute end_time server-side so AI never has to infer it
+      function addMinutes(hhmm, mins) {
+        const [h, m] = hhmm.split(':').map(Number);
+        const total = h * 60 + m + mins;
+        return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+      }
+      // Strip seconds from HH:MM:SS → HH:MM (Supabase time columns return HH:MM:SS)
+      function toHHMM(t) { return t ? t.slice(0, 5) : t; }
+
       // Group slots by band, numbered sequentially across bands
       let counter = 1;
       const bandMap = {};
       for (const s of slots || []) {
-        const hour = parseInt(s.time.split(':')[0], 10);
+        const slotTime = toHHMM(s.time); // always HH:MM
+        const hour = parseInt(slotTime.split(':')[0], 10);
         const band = hour <= 10 ? 'Early' : hour <= 13 ? 'Prime' : 'Twilight';
         if (!bandMap[band]) bandMap[band] = { band, price_idr: s.price, price_display: `Rp ${s.price.toLocaleString('id-ID')}`, slots: [] };
-        bandMap[band].slots.push({ no: counter++, slot_id: s.id, time: s.time });
+        // Always include club_id per slot so AI can reliably copy it into booking_payload
+        const endTime = toHHMM(s.end_time) ?? addMinutes(slotTime, intervalMins);
+        bandMap[band].slots.push({ no: counter++, slot_id: s.id, club_id: club.id, time: slotTime, end_time: endTime });
       }
       const formatted = Object.values(bandMap);
 
@@ -498,18 +511,56 @@ async function runConversationTurn({
 
     // Always do a fresh DB lookup by club+date+time when available — prevents stale/wrong slot_id issues.
     // Falls back to payload.slot_id only if lookup fields are missing.
-    let slotId = payload.slot_id;
-    if (payload.club_id && payload.date && payload.time) {
-      const { data: foundSlot } = await supabase
-        .from('tee_slots')
+    // Normalize time: strip " WIB" suffix, extract only start time from range ("07:00–07:30" → "07:00"),
+    // strip seconds if present ("07:00:00" → "07:00"), ensure 2-digit hour ("7:00" → "07:00").
+    const rawTime = (payload.time || '').replace(/\s*WIB$/i, '').trim().split(/[–\-]/)[0].trim().slice(0, 5).replace(/^(\d):/, '0$1:');
+    // Normalize date: AI may send display format ("Jumat, 14 Agustus 2026") instead of YYYY-MM-DD.
+    // Try to parse it to ISO date if it doesn't look like YYYY-MM-DD already.
+    const ID_MONTHS = { januari:1,februari:2,maret:3,april:4,mei:5,juni:6,juli:7,agustus:8,september:9,oktober:10,november:11,desember:12 };
+    function normalizeDate(raw) {
+      if (!raw) return raw;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw; // already ISO
+      // "Jumat, 14 Agustus 2026" or "14 Agustus 2026"
+      const m = raw.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+      if (m) {
+        const mon = ID_MONTHS[m[2].toLowerCase()];
+        if (mon) return `${m[3]}-${String(mon).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+      }
+      return raw;
+    }
+    const rawDate = normalizeDate(payload.date);
+    let resolvedClubId = payload.club_id;
+
+    // If AI omitted club_id but gave course_name, resolve it now
+    if (!resolvedClubId && payload.course_name) {
+      const { data: clubRow } = await supabase
+        .from('clubs')
         .select('id')
-        .eq('club_id', payload.club_id)
-        .eq('date', payload.date)
-        .eq('time', payload.time)
-        .eq('available', true)
+        .ilike('name', `%${payload.course_name}%`)
+        .limit(1)
         .single();
+      if (clubRow) resolvedClubId = clubRow.id;
+      logger.info('confirm_booking club_id resolved from course_name', { course_name: payload.course_name, resolved: resolvedClubId });
+    }
+
+    let slotId = payload.slot_id;
+    if (resolvedClubId && rawDate && rawTime) {
+      // Fresh lookup by (club_id, date, time) — authoritative, avoids stale/hallucinated slot_id
+      const { data: foundSlot, error: lookupErr } = await supabase
+        .from('tee_slots')
+        .select('id, available')
+        .eq('club_id', resolvedClubId)
+        .eq('date', rawDate)
+        .eq('time', rawTime)
+        .single();
+      logger.info('confirm_booking slot lookup', {
+        club_id: resolvedClubId, date: rawDate, time: rawTime,
+        payload_slot_id: payload.slot_id,
+        found: foundSlot?.id ?? null,
+        available: foundSlot?.available ?? null,
+        lookupErr: lookupErr?.message ?? null,
+      });
       if (foundSlot) slotId = foundSlot.id;
-      logger.info('confirm_booking slot lookup', { club_id: payload.club_id, date: payload.date, time: payload.time, resolved: slotId });
     }
 
     if (!slotId) {
