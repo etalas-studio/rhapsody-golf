@@ -15,5 +15,4 @@ export default defineConfig({
     tanstackStart({ server: { entry: "src/server.ts" } }),
     react(),
   ],
-  ...(process.env.NITRO_PRESET ? { nitro: { preset: process.env.NITRO_PRESET } } : {}),
 });
