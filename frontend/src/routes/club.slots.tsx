@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { PageHeader } from "@/components/ui-bits";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +11,11 @@ import { useApp } from "@/lib/appContext";
 import { api, type ApiAdminTeeSlot, type ApiTeeConfig } from "@/lib/api";
 import { formatIDR } from "@/lib/mockData";
 import { format, addDays } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
 import { toast } from "sonner";
-import { Lock, Unlock, Pencil, Check, X, Sparkles, Settings2 } from "lucide-react";
+import { Lock, Unlock, Pencil, Check, X, Sparkles, Settings2, ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { CardDescription } from "@/components/ui/card";
 
@@ -45,9 +48,6 @@ function SlotManager() {
   const { selectedClubId } = useApp();
   const today = new Date().toISOString().slice(0, 10);
 
-  const dates = Array.from({ length: 14 }, (_, i) =>
-    addDays(new Date(), i).toISOString().slice(0, 10)
-  );
   const [date, setDate] = useState(today);
   const [slots, setSlots] = useState<ApiAdminTeeSlot[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,6 +57,18 @@ function SlotManager() {
   const [genDays, setGenDays] = useState(30);
   const [generating, setGenerating] = useState(false);
   const [genPreview, setGenPreview] = useState<{ start_date: string; last_slot_date: string | null } | null>(null);
+  const [windowStart, setWindowStart] = useState(0); // index into dates[]
+  const WINDOW = 14;
+
+  const dates = useMemo(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    const lastDate = genPreview?.last_slot_date ? new Date(genPreview.last_slot_date) : null;
+    const days = lastDate && lastDate > base
+      ? Math.ceil((lastDate.getTime() - base.getTime()) / 86400000) + 1
+      : 14;
+    return Array.from({ length: days }, (_, i) => addDays(base, i).toISOString().slice(0, 10));
+  }, [genPreview?.last_slot_date]);
   const [bandPrices, setBandPrices] = useState({ early: 1_250_000, prime: 1_450_000, twilight: 1_100_000 });
   // Raw string while editing — format only on blur to avoid cursor jump
   const [bandPriceRaw, setBandPriceRaw] = useState<Partial<Record<BandKey, string>>>({});
@@ -349,31 +361,79 @@ function SlotManager() {
         </Card>
       </div>
 
-      {/* Date picker */}
-      <div className="flex gap-2 overflow-x-auto pb-2 mb-5">
-        {dates.map((d) => {
-          const dt = new Date(d);
-          return (
-            <button
-              key={d}
-              onClick={() => setDate(d)}
-              className={cn(
-                "min-w-[64px] shrink-0 rounded-xl border p-2 text-center transition-colors",
-                d === date
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card hover:border-primary/40"
-              )}
-            >
-              <div className="text-[10px] uppercase opacity-70">
-                {dt.toLocaleDateString("id-ID", { weekday: "short" })}
-              </div>
-              <div className="font-display text-lg">{dt.getDate()}</div>
-              <div className="text-[10px] opacity-70">
-                {dt.toLocaleDateString("id-ID", { month: "short" })}
-              </div>
-            </button>
-          );
-        })}
+      {/* Date strip — windowed + calendar jump */}
+      <div className="flex items-center gap-2 mb-5">
+        <Button
+          variant="outline"
+          size="icon"
+          className="shrink-0"
+          disabled={windowStart === 0}
+          onClick={() => setWindowStart((w) => Math.max(0, w - WINDOW))}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        <div className="flex gap-2 overflow-x-auto pb-1 flex-1 scrollbar-hide">
+          {dates.slice(windowStart, windowStart + WINDOW).map((d) => {
+            const dt = new Date(d);
+            return (
+              <button
+                key={d}
+                onClick={() => setDate(d)}
+                className={cn(
+                  "min-w-16 shrink-0 rounded-xl border p-2 text-center transition-colors",
+                  d === date
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card hover:border-primary/40"
+                )}
+              >
+                <div className="text-[10px] uppercase opacity-70">
+                  {dt.toLocaleDateString("id-ID", { weekday: "short" })}
+                </div>
+                <div className="font-display text-lg">{dt.getDate()}</div>
+                <div className="text-[10px] opacity-70">
+                  {dt.toLocaleDateString("id-ID", { month: "short" })}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <Button
+          variant="outline"
+          size="icon"
+          className="shrink-0"
+          disabled={windowStart + WINDOW >= dates.length}
+          onClick={() => setWindowStart((w) => Math.min(dates.length - WINDOW, w + WINDOW))}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="icon" className="shrink-0" title="Pilih tanggal">
+              <CalendarDays className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Calendar
+              mode="single"
+              locale={idLocale}
+              selected={new Date(date + "T00:00:00")}
+              onSelect={(d) => {
+                if (!d) return;
+                const iso = format(d, "yyyy-MM-dd");
+                const idx = dates.indexOf(iso);
+                if (idx !== -1) {
+                  setWindowStart(Math.max(0, idx - Math.floor(WINDOW / 2)));
+                  setDate(iso);
+                }
+              }}
+              disabled={(d) => !dates.includes(format(d, "yyyy-MM-dd"))}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Legend */}
