@@ -1,14 +1,7 @@
 {
-  "buildCommand": "bun run build",
-  "outputDirectory": "dist/client",
+  "rootDirectory": "frontend",
+  "buildCommand": "NITRO_PRESET=vercel bun run build",
+  "outputDirectory": ".vercel/output",
   "installCommand": "bun install",
-  "framework": null,
-  "build": {
-    "env": {
-      "NITRO_PRESET": "vercel"
-    }
-  },
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "framework": null
 }
