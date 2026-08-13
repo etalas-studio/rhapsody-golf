@@ -405,15 +405,22 @@ function buildToolHandlers({ userId }) {
     },
 
     // Sends message to in-app chat (return value is picked up by the loop)
-    SendInAppMessageTool: async ({ text, with_confirm_buttons, booking_payload, snap_token, order_id, invoice_url }) => ({
-      sent: true,
-      text,
-      with_confirm_buttons: with_confirm_buttons ?? false,
-      booking_payload: booking_payload ?? null,
-      snap_token: snap_token ?? null,
-      order_id: order_id ?? null,
-      invoice_url: invoice_url ?? null,
-    }),
+    // Claude sometimes sends booking_payload as a JSON string instead of object — normalize here.
+    SendInAppMessageTool: async ({ text, with_confirm_buttons, booking_payload, snap_token, order_id, invoice_url }) => {
+      let normalizedPayload = booking_payload ?? null;
+      if (typeof normalizedPayload === 'string') {
+        try { normalizedPayload = JSON.parse(normalizedPayload); } catch { normalizedPayload = null; }
+      }
+      return {
+        sent: true,
+        text,
+        with_confirm_buttons: with_confirm_buttons ?? false,
+        booking_payload: normalizedPayload,
+        snap_token: snap_token ?? null,
+        order_id: order_id ?? null,
+        invoice_url: invoice_url ?? null,
+      };
+    },
   };
 }
 
@@ -527,7 +534,13 @@ async function runConversationTurn({
     let payload;
     try { payload = JSON.parse(payloadStr); } catch { payload = {}; }
 
-    logger.info('confirm_booking intercept', { payload });
+    logger.info('confirm_booking intercept', { payload: payloadStr });
+
+    // Defensive: if JSON.parse returned a string (double-encoded), parse again
+    if (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch { payload = {}; }
+    }
+    logger.info('confirm_booking payload parsed', { slot_id: payload.slot_id, club_id: payload.club_id, date: payload.date, time: payload.time });
 
     // Normalize time: strip " WIB" suffix, extract only start time from range ("07:00–07:30" → "07:00"),
     // strip seconds if present ("07:00:00" → "07:00"), ensure 2-digit hour ("7:00" → "07:00").
@@ -585,9 +598,21 @@ async function runConversationTurn({
       }
     }
 
-    logger.info('confirm_booking resolved slot', { payload_slot_id: payload.slot_id, resolved_slot_id: slotId });
+    logger.info('confirm_booking resolved slot', {
+      payload_type: typeof payload,
+      payload_slot_id: payload.slot_id,
+      resolved_slot_id: slotId,
+      club_id: resolvedClubId,
+      date: rawDate,
+      time: rawTime,
+    });
 
     if (!slotId) {
+      logger.error('confirm_booking slot_id missing', {
+        payloadStr: payloadStr.slice(0, 200),
+        payload_type: typeof payload,
+        payload_keys: typeof payload === 'object' ? Object.keys(payload) : 'N/A',
+      });
       return {
         finalText: 'Maaf, slot tidak ditemukan. Slot mungkin sudah tidak tersedia — silakan pilih jam lain.',
         confirmButtons: false,
