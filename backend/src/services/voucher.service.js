@@ -136,4 +136,4 @@ async function issueVoucher({
   return data;
 }
 
-module.exports = { getUserVouchers, redeemVoucher, issueVoucher, VOUCHER_TYPE_MAP };
+module.exports = { getUserVouchers, redeemVoucher, issueVoucher, VOUCHER_TYPE_MAP, TYPE_DISPLAY_MAP };

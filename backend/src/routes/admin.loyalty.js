@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { getAdminRule, upsertRule } = require('../services/loyalty.service');
-const { issueVoucher, VOUCHER_TYPE_MAP } = require('../services/voucher.service');
+const { issueVoucher, VOUCHER_TYPE_MAP, TYPE_DISPLAY_MAP } = require('../services/voucher.service');
 const logger = require('../utils/logger');
 const supabase = require('../config/supabase');
 
@@ -40,6 +40,29 @@ router.put('/loyalty-rules/:clubId', async (req, res) => {
     res.json({ rule });
   } catch (err) {
     logger.error('PUT /admin/loyalty-rules error', { message: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/admin/vouchers?clubId=
+ * All vouchers for the club (not scoped to current user).
+ */
+router.get('/vouchers', async (req, res) => {
+  const { clubId } = req.query;
+  if (!clubId) return res.status(400).json({ error: 'clubId is required' });
+  try {
+    const { data, error } = await supabase
+      .from('vouchers')
+      .select('id, club_id, user_id, voucher_code, title, description, discount_type, discount_value, max_discount_cap, type, status, quota, used_count, starts_at, expiry_date, min_booking_amount, is_public')
+      .eq('club_id', clubId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
+    // Map DB enum back to display string
+    const vouchers = (data ?? []).map((v) => ({ ...v, type: TYPE_DISPLAY_MAP[v.type] ?? v.type }));
+    res.json({ vouchers });
+  } catch (err) {
+    logger.error('GET /admin/vouchers error', { message: err.message });
     res.status(500).json({ error: err.message });
   }
 });

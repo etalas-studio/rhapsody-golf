@@ -142,6 +142,15 @@ export function useVouchers(clubId?: string, allStatuses?: boolean) {
   );
 }
 
+export function useAdminVouchers(clubId?: string) {
+  const { isAuthenticated } = useApp();
+  return useQuery<ApiVoucher[]>(
+    () => api.admin.vouchers.list(clubId!),
+    [clubId],
+    { skip: !isAuthenticated || !clubId }
+  );
+}
+
 // ─── Tournaments ──────────────────────────────────────────────────────────────
 
 export function useTournaments(params?: {

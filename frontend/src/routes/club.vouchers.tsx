@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { formatIDR } from "@/lib/mockData";
-import { useVouchers } from "@/lib/useApi";
+import { useAdminVouchers } from "@/lib/useApi";
 import { useApp } from "@/lib/appContext";
 import type { ApiVoucher, ApiVoucherIssue } from "@/lib/api";
 import { api } from "@/lib/api";
@@ -384,7 +384,7 @@ function VoucherFormDialog({ open, onClose, initial, clubId, onSaved }: {
 
 function Vouchers() {
   const { selectedClubId } = useApp();
-  const { data: vouchers, loading, error, refetch } = useVouchers(selectedClubId);
+  const { data: vouchers, loading, error, refetch } = useAdminVouchers(selectedClubId);
   const [createOpen, setCreateOpen] = useState(false);
   const [detailTarget, setDetailTarget] = useState<ApiVoucher | null>(null);
   const [editTarget, setEditTarget] = useState<ApiVoucher | null>(null);

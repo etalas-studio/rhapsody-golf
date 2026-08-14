@@ -252,7 +252,7 @@ router.get('/status/:orderId', requireAuth, async (req, res) => {
 
   const { data: booking, error } = await supabase
     .from('bookings')
-    .select('id, status, payment_status, amount, tee_time, ref_code, club_id, user_id')
+    .select('id, status, payment_status, amount, tee_time, ref_code, club_id, user_id, voucher_id')
     .eq('ref_code', orderId)
     .eq('user_id', req.userId)
     .single();
@@ -281,6 +281,9 @@ router.get('/status/:orderId', requireAuth, async (req, res) => {
 
         booking.status = 'Confirmed';
         booking.payment_status = 'Paid';
+        if (booking.voucher_id) {
+          await supabase.rpc('increment_voucher_used_count', { p_voucher_id: booking.voucher_id });
+        }
         logger.info('Status poll: settled booking', { orderId, bookingId: booking.id });
       } else if (failed) {
         await supabase.from('bookings')

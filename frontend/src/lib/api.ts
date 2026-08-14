@@ -291,6 +291,8 @@ export const api = {
     },
 
     vouchers: {
+      list: (clubId: string) =>
+        apiFetch<{ vouchers: ApiVoucher[] }>(`/api/admin/vouchers?clubId=${clubId}`).then((r) => r.vouchers),
       issue: (body: ApiVoucherIssue) =>
         apiFetch<ApiVoucher>("/api/admin/vouchers", { method: "POST", body: JSON.stringify(body) }),
       update: (id: string, body: Partial<ApiVoucherIssue>) =>
