@@ -172,17 +172,13 @@ async function createBooking({
   // Lock slot — released by webhook if payment expires/cancelled
   await supabase.from('tee_slots').update({ available: false }).eq('id', slotId);
 
-  // Mark voucher as Redeemed + increment used_count
+  // Hold the voucher for this user — used_count is incremented only on payment confirmed.
+  // vouchers.status is only Active/Inactive — never mutated here.
   if (voucherId) {
-    const { data: vRow } = await supabase
-      .from('vouchers')
-      .select('used_count')
-      .eq('id', voucherId)
-      .single();
-    await supabase
-      .from('vouchers')
-      .update({ status: 'Redeemed', used_count: (vRow?.used_count ?? 0) + 1 })
-      .eq('id', voucherId);
+    await supabase.from('voucher_redemptions').upsert(
+      { voucher_id: voucherId, user_id: userId, booking_id: booking.id, redeemed_at: new Date().toISOString() },
+      { onConflict: 'voucher_id,user_id' }
+    );
   }
 
   // 8. Create Midtrans Snap transaction — orderId already set as ref_code during INSERT
@@ -238,7 +234,7 @@ async function createBooking({
     await supabase.from('tee_slots').update({ available: true }).eq('id', slotId);
     await supabase.from('bookings').update({ status: 'Cancelled' }).eq('id', booking.id);
     if (voucherId) {
-      await supabase.from('vouchers').update({ status: 'Active' }).eq('id', voucherId);
+      await supabase.from('voucher_redemptions').delete().eq('booking_id', booking.id);
     }
     logger.error('Midtrans Snap error', { message: snapErr.message, orderId });
     throw new Error('Payment gateway error — please try again');

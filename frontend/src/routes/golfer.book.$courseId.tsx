@@ -13,6 +13,7 @@ import { useApp } from "@/lib/appContext";
 import { useClub, useTeeSlots, useVouchers } from "@/lib/useApi";
 import { api } from "@/lib/api";
 import { useState } from "react";
+import { isBefore, isAfter, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { Check, QrCode, Users, Wallet, Coins, Loader2 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
@@ -29,9 +30,9 @@ function BookPage() {
 
   const { data: club, loading: clubLoading } = useClub(courseId);
 
-  const today = new Date();
+  const todayDate = new Date();
   const dates = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today); d.setDate(today.getDate() + i);
+    const d = new Date(todayDate); d.setDate(todayDate.getDate() + i);
     return d.toISOString().slice(0, 10);
   });
 
@@ -50,10 +51,20 @@ function BookPage() {
   const isMember = false;
 
   const selectedSlot = (slots ?? []).find((s) => s.time === slot);
-  const activeVouchers = (myVouchers ?? []).filter((v) => v.status === "Active");
-  const selectedVoucher = activeVouchers.find((v) => v.id === voucher);
-
   const subtotal = selectedSlot ? selectedSlot.price * players * (isMember ? 0.75 : 1) : 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const activeVouchers = (myVouchers ?? []).filter((v) => {
+    if (v.status !== "Active") return false;
+    if (v.type !== "Green Fee") return false;
+    if (v.used_count >= v.quota) return false;
+    if (v.min_booking_amount && subtotal < v.min_booking_amount) return false;
+    try {
+      if (isBefore(parseISO(v.expiry_date), parseISO(today))) return false;
+      if (isAfter(parseISO(v.starts_at), parseISO(today))) return false;
+    } catch { return false; }
+    return true;
+  });
+  const selectedVoucher = activeVouchers.find((v) => v.id === voucher);
   const voucherDiscount = (() => {
     if (!selectedVoucher || !subtotal) return 0;
     const base = selectedVoucher.discount_type === "Percentage"

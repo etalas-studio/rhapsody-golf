@@ -18,7 +18,7 @@ function AppHistoryDetail() {
 
   const { data: club, loading: clubLoading } = useClub(clubId);
   const { data: apiCards } = useScorecards();
-  const { data: bookingList } = useBookings({ status: "completed" });
+  const { data: bookingList } = useBookings({ status: "Completed" });
 
   const myRounds = (bookingList?.bookings ?? [])
     .filter((b) => b.club_id === clubId)
@@ -83,7 +83,7 @@ function AppHistoryDetail() {
                           {format(parseISO(r.tee_time), "EEE, d MMM yyyy")}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {format(parseISO(r.tee_time), "HH:mm")} · {r.players}P
+                          {format(parseISO(r.tee_time), "HH:mm")}{r.tee_end_time ? `–${r.tee_end_time}` : ""} · {r.players}P
                         </p>
                       </div>
                       <div className="text-right">

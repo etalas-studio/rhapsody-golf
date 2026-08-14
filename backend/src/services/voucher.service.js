@@ -19,21 +19,37 @@ async function getUserVouchers(userId, { clubId, allStatuses = false } = {}) {
   // because public vouchers have is_public=true regardless of user_id.
   const today = new Date().toISOString().slice(0, 10);
   const orFilter = `user_id.eq.${userId},is_public.eq.true`;
+  // Also fetch voucher_redemptions filtered to this user via left join.
+  // This lets us derive per-user effective status for public vouchers —
+  // the global voucher row stays Active so other users still see it as Active.
   let query = supabase
     .from('vouchers')
-    .select('id, club_id, user_id, voucher_code, title, description, discount_type, discount_value, max_discount_cap, type, status, quota, used_count, starts_at, expiry_date, min_booking_amount, is_public, clubs(name, short_name)')
+    .select('id, club_id, user_id, voucher_code, title, description, discount_type, discount_value, max_discount_cap, type, status, quota, used_count, starts_at, expiry_date, min_booking_amount, is_public, clubs(name, short_name), voucher_redemptions!left(user_id, redeemed_at)')
     .or(orFilter)
+    .eq('voucher_redemptions.user_id', userId)
     .order('expiry_date');
 
+  // Always exclude Inactive (disabled by club admin) — never show to golfer.
+  query = query.eq('status', 'Active');
+
   if (!allStatuses) {
-    query = query.eq('status', 'Active').gte('expiry_date', today).lte('starts_at', today);
+    // Active tab: only vouchers within their valid date window
+    query = query.gte('expiry_date', today).lte('starts_at', today);
   }
 
   if (clubId) query = query.eq('club_id', clubId);
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
-  return (data ?? []).map((v) => ({ ...v, type: TYPE_DISPLAY_MAP[v.type] ?? v.type }));
+  return (data ?? []).map((v) => {
+    const redemption = v.voucher_redemptions?.[0];
+    // Derive per-user effective status — vouchers.status is only Active/Inactive (global).
+    let effectiveStatus = v.status;
+    if (redemption) effectiveStatus = 'Redeemed';
+    else if (v.expiry_date < today) effectiveStatus = 'Expired';
+    const { voucher_redemptions: _vr, ...rest } = v;
+    return { ...rest, status: effectiveStatus, redeemed_at: redemption?.redeemed_at ?? null, type: TYPE_DISPLAY_MAP[v.type] ?? v.type };
+  });
 }
 
 /**

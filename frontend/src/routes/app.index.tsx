@@ -21,6 +21,7 @@ function AppHome() {
   const { user } = useApp();
 
   const { data: bookingData, loading: bLoading } = useBookings({ limit: 20 });
+  const { data: completedData } = useBookings({ status: "Completed", limit: 1000 });
   const { data: loyaltyData, loading: lLoading } = useLoyaltyBalances();
   const { data: voucherData, loading: vLoading } = useVouchers();
   const { data: clubData, loading: cLoading } = useClubs();
@@ -32,8 +33,7 @@ function AppHome() {
 
   const totalPts = loyaltyData?.reduce((sum, b) => sum + b.points, 0) ?? 0;
   const activeVouchers = voucherData?.filter((v) => v.status === "Active") ?? [];
-  const completedRounds =
-    bookingData?.bookings.filter((b) => b.status === "Completed").length ?? 0;
+  const completedRounds = completedData?.bookings.length ?? 0;
 
   const loading = bLoading || lLoading || vLoading;
 

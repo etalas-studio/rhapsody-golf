@@ -101,9 +101,7 @@ enum LoyaltyTransactionType {
 
 enum VoucherStatus {
   Active
-  Redeemed
-  Expired
-  Cancelled
+  Inactive
 }
 
 enum VoucherType {

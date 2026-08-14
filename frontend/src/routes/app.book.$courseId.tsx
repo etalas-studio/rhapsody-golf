@@ -74,21 +74,23 @@ function AppBookPage() {
 
   const { data: allVouchers } = useVouchers(club?.id);
 
-  // Filter vouchers yang valid: Green Fee, club sesuai, belum expired, belum habis kuota
   const today = new Date().toISOString().slice(0, 10);
+  // slotPrice for min_booking_amount check — use searchPrice here (club guard is below)
+  const bookingPrice = searchPrice ?? club?.starting_price ?? 0;
   const validVouchers = useMemo((): ApiVoucher[] => {
     if (!allVouchers) return [];
     return allVouchers.filter((v) => {
       if (v.status !== "Active") return false;
       if (v.type !== "Green Fee") return false;
       if (v.used_count >= v.quota) return false;
+      if (v.min_booking_amount && bookingPrice < v.min_booking_amount) return false;
       try {
         if (isBefore(parseISO(v.expiry_date), parseISO(today))) return false;
         if (isAfter(parseISO(v.starts_at), parseISO(today))) return false;
       } catch { return false; }
       return true;
     });
-  }, [allVouchers, today]);
+  }, [allVouchers, today, bookingPrice]);
 
   const selectedVoucher = validVouchers.find((v) => v.id === selectedVoucherId && selectedVoucherId !== "__none__") ?? null;
 

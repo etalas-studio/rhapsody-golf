@@ -16,6 +16,7 @@ const tournamentsRouter = require('./routes/tournaments');
 const scorecardsRouter = require('./routes/scorecards');
 const superadminRouter = require('./routes/admin.superadmin');
 const paymentsRouter = require('./routes/payments');
+const { startBookingExpiryScheduler } = require('./services/booking-expiry.service');
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/payments', paymentsRouter);
 
 app.listen(config.port, () => {
   logger.info(`Rhapsody backend running on port ${config.port}`);
+  startBookingExpiryScheduler();
 });
 
 module.exports = app;

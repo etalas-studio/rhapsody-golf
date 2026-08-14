@@ -163,12 +163,11 @@ router.post('/midtrans-webhook', async (req, res) => {
       })
       .eq('reference_number', order_id);
 
-    // Mark voucher Redeemed if it was reserved on this booking
-    await supabase
-      .from('vouchers')
-      .update({ status: 'Redeemed' })
-      .eq('status', 'Reserved')
-      .eq('booking_id', resolvedBookingId);
+    // Increment used_count now that payment is confirmed.
+    // voucher_redemptions row was inserted at booking creation (holds the slot).
+    if (booking.voucher_id) {
+      await supabase.rpc('increment_voucher_used_count', { p_voucher_id: booking.voucher_id });
+    }
 
     // Auto-earn loyalty points (non-blocking)
     earnPoints({
@@ -228,12 +227,9 @@ router.post('/midtrans-webhook', async (req, res) => {
       await supabase.from('tee_slots').update({ available: true }).eq('id', slot.id);
     }
 
-    // Release reserved voucher back to active
-    await supabase
-      .from('vouchers')
-      .update({ status: 'Active' })
-      .eq('status', 'Reserved')
-      .eq('booking_id', resolvedBookingId);
+    // Payment failed — release the voucher hold so the user can reuse it.
+    // used_count was never incremented (that only happens on confirmed), so no decrement needed.
+    await supabase.from('voucher_redemptions').delete().eq('booking_id', resolvedBookingId);
 
     logger.info('Booking cancelled — payment failed/expired', {
       bookingId: resolvedBookingId,

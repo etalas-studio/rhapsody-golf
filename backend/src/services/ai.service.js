@@ -183,9 +183,8 @@ function buildToolHandlers({ userId }) {
       };
     },
 
-    // Lists all active clubs/courses that have at least one future available tee slot
+    // Lists all active clubs/courses — mirrors GET /api/clubs (no slot filter)
     ListGolfCoursesTool: async () => {
-      const today = todayWIB();
       const { data: clubs, error } = await supabase
         .from('clubs')
         .select('id, name, short_name, location, number_of_holes, par')
@@ -198,27 +197,15 @@ function buildToolHandlers({ userId }) {
       }
       if (!clubs || clubs.length === 0) return { courses: [] };
 
-      // Filter to clubs that have at least one future available slot
-      const { data: slotRows } = await supabase
-        .from('tee_slots')
-        .select('club_id')
-        .in('club_id', clubs.map((c) => c.id))
-        .gte('date', today)
-        .eq('available', true);
-
-      const clubIdsWithSlots = new Set((slotRows || []).map((s) => s.club_id));
-
       return {
-        courses: clubs
-          .filter((c) => clubIdsWithSlots.has(c.id))
-          .map((c) => ({
-            id: c.id,
-            name: c.name,
-            short_name: c.short_name,
-            location: c.location,
-            holes: c.number_of_holes,
-            par: c.par,
-          })),
+        courses: clubs.map((c) => ({
+          id: c.id,
+          name: c.name,
+          short_name: c.short_name,
+          location: c.location,
+          holes: c.number_of_holes,
+          par: c.par,
+        })),
       };
     },
 
