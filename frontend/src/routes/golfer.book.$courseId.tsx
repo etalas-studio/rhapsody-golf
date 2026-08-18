@@ -93,12 +93,13 @@ function BookPage() {
     const doConfirm = async () => {
       setConfirming(true);
       try {
-        const booking = await api.bookings.create({
+        const result = await api.bookings.create({
           club_id: club.id,
           tee_time: `${date}T${slot}:00`,
           players,
           voucher_id: voucher !== "none" ? voucher : undefined,
         });
+        const booking = result.booking;
         if (ghvUsed > 0) topUpGHV(-ghvUsed);
         setConfirmed({ ref: booking.ref_code ?? booking.id, ghvUsed, ghpUsed: ghpUsedPts });
         toast.success("Booking confirmed", { description: `Reference ${booking.ref_code ?? booking.id}` });

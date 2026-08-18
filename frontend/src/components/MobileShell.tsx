@@ -15,7 +15,7 @@ const tabs = [
   { to: "/app", label: "Home", icon: LayoutDashboard },
   { to: "/app/courses", label: "Courses", icon: MapPin },
   { to: "/app/bookings", label: "Bookings", icon: CalendarCheck },
-  { to: "/app/tournaments", label: "Tournaments", icon: Trophy },
+  { to: "/app/tournaments", label: "Events", icon: Trophy },
   { to: "/app/profile", label: "Profile", icon: User },
 ] as const;
 

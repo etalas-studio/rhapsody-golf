@@ -27,11 +27,11 @@ function Courses() {
   const showNudge = !isAuthenticated && !nudgeDismissed && courseViewCount >= 2;
 
   const { data: clubs, loading, error } = useClubs();
-  const { data: tournamentData } = useTournaments({ status: "Open" });
+  const { data: tournaments } = useTournaments({ status: "Open" });
 
   const activeTournamentClubIds = useMemo(() => {
-    return new Set((tournamentData?.tournaments ?? []).map((t) => t.club_id));
-  }, [tournamentData]);
+    return new Set((tournaments ?? []).map((t) => t.club_id));
+  }, [tournaments]);
 
   const list = useMemo(() => {
     let l = (clubs ?? []).filter((c) => c.active);

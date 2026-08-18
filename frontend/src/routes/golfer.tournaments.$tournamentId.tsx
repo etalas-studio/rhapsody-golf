@@ -70,9 +70,9 @@ function Page() {
   const { data: myRegs, loading: regLoading } = useMyTournamentRegistrations();
 
   const [regOverride, setRegOverride] = useState<"registered" | "cancelled" | null>(null);
-  const existingReg = (myRegs ?? []).find((r) => r.tournament_id === tournamentId && ["Registered", "Confirmed", "Checked-in", "Waitlist"].includes(r.status));
+  const existingReg = (myRegs ?? []).find((r) => (r.event_id ?? r.tournament_id) === tournamentId && ["Registered", "Confirmed", "Checked-in", "Waitlist"].includes(r.status));
   const registered = regOverride === "registered" || (regOverride !== "cancelled" && !!existingReg);
-  const cancelled = regOverride === "cancelled" || (!registered && !!(myRegs ?? []).find((r) => r.tournament_id === tournamentId && r.status === "Cancelled"));
+  const cancelled = regOverride === "cancelled" || (!registered && !!(myRegs ?? []).find((r) => (r.event_id ?? r.tournament_id) === tournamentId && r.status === "Cancelled"));
 
   const [passOpen, setPassOpen] = useState(false);
   const [open, setOpen] = useState(false);
@@ -95,8 +95,8 @@ function Page() {
 
   if (!t) return null;
 
-  const registeredCount = t.registered_count ?? 0;
-  const spotsLeft = t.max_players - registeredCount;
+  const registeredCount = t.registered_count ?? t.slots_used ?? 0;
+  const spotsLeft = (t.max_players ?? t.quota ?? 0) - registeredCount;
   const isFull = spotsLeft <= 0;
   const canRegister = t.status === "Open" && !isFull && !registered;
   const canWaitlist = t.status === "Open" && isFull && !registered;
@@ -228,7 +228,7 @@ function Page() {
             )}
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Stat icon={<Calendar className="h-4 w-4" />} label="Date" value={t.start_date} />
+              <Stat icon={<Calendar className="h-4 w-4" />} label="Date" value={t.start_date ?? t.date} />
               <Stat icon={<Clock className="h-4 w-4" />} label="Deadline" value={t.registration_deadline} />
               <Stat icon={<Users className="h-4 w-4" />} label="Spots" value={`${registeredCount}/${t.max_players}`} />
               <Stat icon={<Award className="h-4 w-4" />} label="Entry fee" value={formatIDR(t.entry_fee)} />
@@ -285,7 +285,7 @@ function Page() {
                 {t.prize_pool && (
                   <div className="pt-2 border-t">
                     <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Prize pool</div>
-                    <div className="font-medium text-sm text-foreground">{formatIDR(t.prize_pool)}</div>
+                    <div className="font-medium text-sm text-foreground">{t.prize_pool}</div>
                   </div>
                 )}
               </div>
@@ -311,7 +311,7 @@ function Page() {
                 <SectionTitle icon={<Medal className="h-4 w-4" />}>Prize pool</SectionTitle>
                 <div className="flex items-center gap-3">
                   <Trophy className="h-5 w-5 text-gold" />
-                  <div className="font-display text-2xl">{formatIDR(t.prize_pool)}</div>
+                  <div className="font-display text-2xl">{t.prize_pool}</div>
                 </div>
               </CardContent>
             </Card>

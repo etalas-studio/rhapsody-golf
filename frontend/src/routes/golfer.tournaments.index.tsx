@@ -48,8 +48,8 @@ function regBadgeCls(status: string) {
 }
 
 function TournamentCard({ t, clubName }: { t: ApiTournament; clubName?: string }) {
-  const registered = t.registered_count ?? 0;
-  const spotsLeft = t.max_players - registered;
+  const registered = t.registered_count ?? t.slots_used ?? 0;
+  const spotsLeft = (t.max_players ?? t.quota ?? 0) - registered;
   const almostFull = spotsLeft > 0 && spotsLeft <= 10;
   const full = spotsLeft <= 0 && t.status === "Open";
   return (
@@ -128,16 +128,15 @@ function Page() {
 
   const { data: clubs } = useClubs();
   const { data: tournamentData, loading: tLoading } = useTournaments({
-    format: filterFormat !== "All formats" ? filterFormat : undefined,
     clubId: filterClub !== "all" ? filterClub : undefined,
   });
   const { data: myRegs, loading: regLoading } = useMyTournamentRegistrations();
 
   const clubMap = Object.fromEntries((clubs ?? []).map((c) => [c.id, c.name]));
-  const tournamentMap = Object.fromEntries((tournamentData?.tournaments ?? []).map((t) => [t.id, t]));
+  const tournamentMap = Object.fromEntries((tournamentData ?? []).map((t) => [t.id, t]));
 
   const feeRange = FEE_RANGES[filterFeeIdx];
-  const filtered = (tournamentData?.tournaments ?? []).filter((t) => {
+  const filtered = (tournamentData ?? []).filter((t) => {
     if (t.entry_fee < feeRange.min || t.entry_fee > feeRange.max) return false;
     return true;
   });
@@ -238,7 +237,7 @@ function Page() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Upcoming & live</div>
                   <div className="space-y-2">
                     {activeRegs.map((r) => (
-                      <MyTournamentRow key={r.id} reg={r} tournament={tournamentMap[r.tournament_id]} clubName={tournamentMap[r.tournament_id] ? clubMap[tournamentMap[r.tournament_id].club_id] : undefined} />
+                      <MyTournamentRow key={r.id} reg={r} tournament={tournamentMap[r.event_id ?? r.tournament_id ?? ""]} clubName={tournamentMap[r.event_id ?? r.tournament_id ?? ""] ? clubMap[tournamentMap[r.event_id ?? r.tournament_id ?? ""].club_id] : undefined} />
                     ))}
                   </div>
                 </section>
@@ -248,7 +247,7 @@ function Page() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Past results</div>
                   <div className="space-y-2">
                     {pastRegs.map((r) => (
-                      <MyTournamentRow key={r.id} reg={r} tournament={tournamentMap[r.tournament_id]} clubName={tournamentMap[r.tournament_id] ? clubMap[tournamentMap[r.tournament_id].club_id] : undefined} />
+                      <MyTournamentRow key={r.id} reg={r} tournament={tournamentMap[r.event_id ?? r.tournament_id ?? ""]} clubName={tournamentMap[r.event_id ?? r.tournament_id ?? ""] ? clubMap[tournamentMap[r.event_id ?? r.tournament_id ?? ""].club_id] : undefined} />
                     ))}
                   </div>
                 </section>

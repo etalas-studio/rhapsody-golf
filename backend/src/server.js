@@ -12,11 +12,13 @@ const loyaltyRouter = require('./routes/loyalty');
 const vouchersRouter = require('./routes/vouchers');
 const adminLoyaltyRouter = require('./routes/admin.loyalty');
 const adminClubRouter = require('./routes/admin.club');
-const tournamentsRouter = require('./routes/tournaments');
+const adminEventsRouter = require('./routes/admin.events');
+const eventsRouter = require('./routes/events');
 const scorecardsRouter = require('./routes/scorecards');
 const superadminRouter = require('./routes/admin.superadmin');
 const paymentsRouter = require('./routes/payments');
 const { startBookingExpiryScheduler } = require('./services/booking-expiry.service');
+const { startEventScheduler } = require('./services/event-scheduler.service');
 
 const app = express();
 
@@ -44,7 +46,8 @@ app.use('/api/loyalty', loyaltyRouter);
 app.use('/api/vouchers', vouchersRouter);
 app.use('/api/admin', adminLoyaltyRouter);
 app.use('/api/admin', adminClubRouter);
-app.use('/api/tournaments', tournamentsRouter);
+app.use('/api/admin', adminEventsRouter);
+app.use('/api/events', eventsRouter);
 app.use('/api/scorecards', scorecardsRouter);
 app.use('/api/superadmin', superadminRouter);
 app.use('/api/payments', paymentsRouter);
@@ -52,6 +55,7 @@ app.use('/api/payments', paymentsRouter);
 app.listen(config.port, () => {
   logger.info(`Rhapsody backend running on port ${config.port}`);
   startBookingExpiryScheduler();
+  startEventScheduler();
 });
 
 module.exports = app;

@@ -47,6 +47,7 @@ import { Route as GolferTournamentsIndexRouteImport } from './routes/golfer.tour
 import { Route as GolferCoursesIndexRouteImport } from './routes/golfer.courses.index'
 import { Route as GolferBookingsIndexRouteImport } from './routes/golfer.bookings.index'
 import { Route as ClubMembersIndexRouteImport } from './routes/club.members.index'
+import { Route as ClubEventsIndexRouteImport } from './routes/club.events.index'
 import { Route as AppTournamentsIndexRouteImport } from './routes/app.tournaments.index'
 import { Route as AppCoursesIndexRouteImport } from './routes/app.courses.index'
 import { Route as AppBookingsIndexRouteImport } from './routes/app.bookings.index'
@@ -58,6 +59,7 @@ import { Route as GolferCoursesCourseIdRouteImport } from './routes/golfer.cours
 import { Route as GolferBookingsBookingIdRouteImport } from './routes/golfer.bookings.$bookingId'
 import { Route as GolferBookCourseIdRouteImport } from './routes/golfer.book.$courseId'
 import { Route as ClubMembersMemberIdRouteImport } from './routes/club.members.$memberId'
+import { Route as ClubEventsNewRouteImport } from './routes/club.events.new'
 import { Route as AppTournamentsTournamentIdRouteImport } from './routes/app.tournaments.$tournamentId'
 import { Route as AppHistoryClubIdRouteImport } from './routes/app.history.$clubId'
 import { Route as AppCoursesCourseIdRouteImport } from './routes/app.courses.$courseId'
@@ -65,7 +67,10 @@ import { Route as AppBookingsBookingIdRouteImport } from './routes/app.bookings.
 import { Route as AppBookCourseIdRouteImport } from './routes/app.book.$courseId'
 import { Route as AdminMembersUserIdRouteImport } from './routes/admin.members.$userId'
 import { Route as GolferTournamentsTournamentIdScoreRouteImport } from './routes/golfer.tournaments.$tournamentId.score'
+import { Route as ClubEventsEventIdParticipantsRouteImport } from './routes/club.events.$eventId.participants'
+import { Route as ClubEventsEventIdEditRouteImport } from './routes/club.events.$eventId.edit'
 import { Route as AppTournamentsTournamentIdScoreRouteImport } from './routes/app.tournaments.$tournamentId.score'
+import { Route as AppTournamentsTournamentIdRegisterRouteImport } from './routes/app.tournaments.$tournamentId.register'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -257,6 +262,11 @@ const ClubMembersIndexRoute = ClubMembersIndexRouteImport.update({
   path: '/members/',
   getParentRoute: () => ClubRoute,
 } as any)
+const ClubEventsIndexRoute = ClubEventsIndexRouteImport.update({
+  id: '/events/',
+  path: '/events/',
+  getParentRoute: () => ClubRoute,
+} as any)
 const AppTournamentsIndexRoute = AppTournamentsIndexRouteImport.update({
   id: '/tournaments/',
   path: '/tournaments/',
@@ -314,6 +324,11 @@ const ClubMembersMemberIdRoute = ClubMembersMemberIdRouteImport.update({
   path: '/members/$memberId',
   getParentRoute: () => ClubRoute,
 } as any)
+const ClubEventsNewRoute = ClubEventsNewRouteImport.update({
+  id: '/events/new',
+  path: '/events/new',
+  getParentRoute: () => ClubRoute,
+} as any)
 const AppTournamentsTournamentIdRoute =
   AppTournamentsTournamentIdRouteImport.update({
     id: '/tournaments/$tournamentId',
@@ -351,10 +366,27 @@ const GolferTournamentsTournamentIdScoreRoute =
     path: '/score',
     getParentRoute: () => GolferTournamentsTournamentIdRoute,
   } as any)
+const ClubEventsEventIdParticipantsRoute =
+  ClubEventsEventIdParticipantsRouteImport.update({
+    id: '/events/$eventId/participants',
+    path: '/events/$eventId/participants',
+    getParentRoute: () => ClubRoute,
+  } as any)
+const ClubEventsEventIdEditRoute = ClubEventsEventIdEditRouteImport.update({
+  id: '/events/$eventId/edit',
+  path: '/events/$eventId/edit',
+  getParentRoute: () => ClubRoute,
+} as any)
 const AppTournamentsTournamentIdScoreRoute =
   AppTournamentsTournamentIdScoreRouteImport.update({
     id: '/score',
     path: '/score',
+    getParentRoute: () => AppTournamentsTournamentIdRoute,
+  } as any)
+const AppTournamentsTournamentIdRegisterRoute =
+  AppTournamentsTournamentIdRegisterRouteImport.update({
+    id: '/register',
+    path: '/register',
     getParentRoute: () => AppTournamentsTournamentIdRoute,
   } as any)
 
@@ -399,6 +431,7 @@ export interface FileRoutesByFullPath {
   '/app/courses/$courseId': typeof AppCoursesCourseIdRoute
   '/app/history/$clubId': typeof AppHistoryClubIdRoute
   '/app/tournaments/$tournamentId': typeof AppTournamentsTournamentIdRouteWithChildren
+  '/club/events/new': typeof ClubEventsNewRoute
   '/club/members/$memberId': typeof ClubMembersMemberIdRoute
   '/golfer/book/$courseId': typeof GolferBookCourseIdRoute
   '/golfer/bookings/$bookingId': typeof GolferBookingsBookingIdRoute
@@ -410,11 +443,15 @@ export interface FileRoutesByFullPath {
   '/app/bookings/': typeof AppBookingsIndexRoute
   '/app/courses/': typeof AppCoursesIndexRoute
   '/app/tournaments/': typeof AppTournamentsIndexRoute
+  '/club/events/': typeof ClubEventsIndexRoute
   '/club/members/': typeof ClubMembersIndexRoute
   '/golfer/bookings/': typeof GolferBookingsIndexRoute
   '/golfer/courses/': typeof GolferCoursesIndexRoute
   '/golfer/tournaments/': typeof GolferTournamentsIndexRoute
+  '/app/tournaments/$tournamentId/register': typeof AppTournamentsTournamentIdRegisterRoute
   '/app/tournaments/$tournamentId/score': typeof AppTournamentsTournamentIdScoreRoute
+  '/club/events/$eventId/edit': typeof ClubEventsEventIdEditRoute
+  '/club/events/$eventId/participants': typeof ClubEventsEventIdParticipantsRoute
   '/golfer/tournaments/$tournamentId/score': typeof GolferTournamentsTournamentIdScoreRoute
 }
 export interface FileRoutesByTo {
@@ -454,6 +491,7 @@ export interface FileRoutesByTo {
   '/app/courses/$courseId': typeof AppCoursesCourseIdRoute
   '/app/history/$clubId': typeof AppHistoryClubIdRoute
   '/app/tournaments/$tournamentId': typeof AppTournamentsTournamentIdRouteWithChildren
+  '/club/events/new': typeof ClubEventsNewRoute
   '/club/members/$memberId': typeof ClubMembersMemberIdRoute
   '/golfer/book/$courseId': typeof GolferBookCourseIdRoute
   '/golfer/bookings/$bookingId': typeof GolferBookingsBookingIdRoute
@@ -465,11 +503,15 @@ export interface FileRoutesByTo {
   '/app/bookings': typeof AppBookingsIndexRoute
   '/app/courses': typeof AppCoursesIndexRoute
   '/app/tournaments': typeof AppTournamentsIndexRoute
+  '/club/events': typeof ClubEventsIndexRoute
   '/club/members': typeof ClubMembersIndexRoute
   '/golfer/bookings': typeof GolferBookingsIndexRoute
   '/golfer/courses': typeof GolferCoursesIndexRoute
   '/golfer/tournaments': typeof GolferTournamentsIndexRoute
+  '/app/tournaments/$tournamentId/register': typeof AppTournamentsTournamentIdRegisterRoute
   '/app/tournaments/$tournamentId/score': typeof AppTournamentsTournamentIdScoreRoute
+  '/club/events/$eventId/edit': typeof ClubEventsEventIdEditRoute
+  '/club/events/$eventId/participants': typeof ClubEventsEventIdParticipantsRoute
   '/golfer/tournaments/$tournamentId/score': typeof GolferTournamentsTournamentIdScoreRoute
 }
 export interface FileRoutesById {
@@ -514,6 +556,7 @@ export interface FileRoutesById {
   '/app/courses/$courseId': typeof AppCoursesCourseIdRoute
   '/app/history/$clubId': typeof AppHistoryClubIdRoute
   '/app/tournaments/$tournamentId': typeof AppTournamentsTournamentIdRouteWithChildren
+  '/club/events/new': typeof ClubEventsNewRoute
   '/club/members/$memberId': typeof ClubMembersMemberIdRoute
   '/golfer/book/$courseId': typeof GolferBookCourseIdRoute
   '/golfer/bookings/$bookingId': typeof GolferBookingsBookingIdRoute
@@ -525,11 +568,15 @@ export interface FileRoutesById {
   '/app/bookings/': typeof AppBookingsIndexRoute
   '/app/courses/': typeof AppCoursesIndexRoute
   '/app/tournaments/': typeof AppTournamentsIndexRoute
+  '/club/events/': typeof ClubEventsIndexRoute
   '/club/members/': typeof ClubMembersIndexRoute
   '/golfer/bookings/': typeof GolferBookingsIndexRoute
   '/golfer/courses/': typeof GolferCoursesIndexRoute
   '/golfer/tournaments/': typeof GolferTournamentsIndexRoute
+  '/app/tournaments/$tournamentId/register': typeof AppTournamentsTournamentIdRegisterRoute
   '/app/tournaments/$tournamentId/score': typeof AppTournamentsTournamentIdScoreRoute
+  '/club/events/$eventId/edit': typeof ClubEventsEventIdEditRoute
+  '/club/events/$eventId/participants': typeof ClubEventsEventIdParticipantsRoute
   '/golfer/tournaments/$tournamentId/score': typeof GolferTournamentsTournamentIdScoreRoute
 }
 export interface FileRouteTypes {
@@ -575,6 +622,7 @@ export interface FileRouteTypes {
     | '/app/courses/$courseId'
     | '/app/history/$clubId'
     | '/app/tournaments/$tournamentId'
+    | '/club/events/new'
     | '/club/members/$memberId'
     | '/golfer/book/$courseId'
     | '/golfer/bookings/$bookingId'
@@ -586,11 +634,15 @@ export interface FileRouteTypes {
     | '/app/bookings/'
     | '/app/courses/'
     | '/app/tournaments/'
+    | '/club/events/'
     | '/club/members/'
     | '/golfer/bookings/'
     | '/golfer/courses/'
     | '/golfer/tournaments/'
+    | '/app/tournaments/$tournamentId/register'
     | '/app/tournaments/$tournamentId/score'
+    | '/club/events/$eventId/edit'
+    | '/club/events/$eventId/participants'
     | '/golfer/tournaments/$tournamentId/score'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -630,6 +682,7 @@ export interface FileRouteTypes {
     | '/app/courses/$courseId'
     | '/app/history/$clubId'
     | '/app/tournaments/$tournamentId'
+    | '/club/events/new'
     | '/club/members/$memberId'
     | '/golfer/book/$courseId'
     | '/golfer/bookings/$bookingId'
@@ -641,11 +694,15 @@ export interface FileRouteTypes {
     | '/app/bookings'
     | '/app/courses'
     | '/app/tournaments'
+    | '/club/events'
     | '/club/members'
     | '/golfer/bookings'
     | '/golfer/courses'
     | '/golfer/tournaments'
+    | '/app/tournaments/$tournamentId/register'
     | '/app/tournaments/$tournamentId/score'
+    | '/club/events/$eventId/edit'
+    | '/club/events/$eventId/participants'
     | '/golfer/tournaments/$tournamentId/score'
   id:
     | '__root__'
@@ -689,6 +746,7 @@ export interface FileRouteTypes {
     | '/app/courses/$courseId'
     | '/app/history/$clubId'
     | '/app/tournaments/$tournamentId'
+    | '/club/events/new'
     | '/club/members/$memberId'
     | '/golfer/book/$courseId'
     | '/golfer/bookings/$bookingId'
@@ -700,11 +758,15 @@ export interface FileRouteTypes {
     | '/app/bookings/'
     | '/app/courses/'
     | '/app/tournaments/'
+    | '/club/events/'
     | '/club/members/'
     | '/golfer/bookings/'
     | '/golfer/courses/'
     | '/golfer/tournaments/'
+    | '/app/tournaments/$tournamentId/register'
     | '/app/tournaments/$tournamentId/score'
+    | '/club/events/$eventId/edit'
+    | '/club/events/$eventId/participants'
     | '/golfer/tournaments/$tournamentId/score'
   fileRoutesById: FileRoutesById
 }
@@ -987,6 +1049,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClubMembersIndexRouteImport
       parentRoute: typeof ClubRoute
     }
+    '/club/events/': {
+      id: '/club/events/'
+      path: '/events'
+      fullPath: '/club/events/'
+      preLoaderRoute: typeof ClubEventsIndexRouteImport
+      parentRoute: typeof ClubRoute
+    }
     '/app/tournaments/': {
       id: '/app/tournaments/'
       path: '/tournaments'
@@ -1064,6 +1133,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClubMembersMemberIdRouteImport
       parentRoute: typeof ClubRoute
     }
+    '/club/events/new': {
+      id: '/club/events/new'
+      path: '/events/new'
+      fullPath: '/club/events/new'
+      preLoaderRoute: typeof ClubEventsNewRouteImport
+      parentRoute: typeof ClubRoute
+    }
     '/app/tournaments/$tournamentId': {
       id: '/app/tournaments/$tournamentId'
       path: '/tournaments/$tournamentId'
@@ -1113,11 +1189,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GolferTournamentsTournamentIdScoreRouteImport
       parentRoute: typeof GolferTournamentsTournamentIdRoute
     }
+    '/club/events/$eventId/participants': {
+      id: '/club/events/$eventId/participants'
+      path: '/events/$eventId/participants'
+      fullPath: '/club/events/$eventId/participants'
+      preLoaderRoute: typeof ClubEventsEventIdParticipantsRouteImport
+      parentRoute: typeof ClubRoute
+    }
+    '/club/events/$eventId/edit': {
+      id: '/club/events/$eventId/edit'
+      path: '/events/$eventId/edit'
+      fullPath: '/club/events/$eventId/edit'
+      preLoaderRoute: typeof ClubEventsEventIdEditRouteImport
+      parentRoute: typeof ClubRoute
+    }
     '/app/tournaments/$tournamentId/score': {
       id: '/app/tournaments/$tournamentId/score'
       path: '/score'
       fullPath: '/app/tournaments/$tournamentId/score'
       preLoaderRoute: typeof AppTournamentsTournamentIdScoreRouteImport
+      parentRoute: typeof AppTournamentsTournamentIdRoute
+    }
+    '/app/tournaments/$tournamentId/register': {
+      id: '/app/tournaments/$tournamentId/register'
+      path: '/register'
+      fullPath: '/app/tournaments/$tournamentId/register'
+      preLoaderRoute: typeof AppTournamentsTournamentIdRegisterRouteImport
       parentRoute: typeof AppTournamentsTournamentIdRoute
     }
   }
@@ -1150,11 +1247,14 @@ const AdminRouteChildren: AdminRouteChildren = {
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 interface AppTournamentsTournamentIdRouteChildren {
+  AppTournamentsTournamentIdRegisterRoute: typeof AppTournamentsTournamentIdRegisterRoute
   AppTournamentsTournamentIdScoreRoute: typeof AppTournamentsTournamentIdScoreRoute
 }
 
 const AppTournamentsTournamentIdRouteChildren: AppTournamentsTournamentIdRouteChildren =
   {
+    AppTournamentsTournamentIdRegisterRoute:
+      AppTournamentsTournamentIdRegisterRoute,
     AppTournamentsTournamentIdScoreRoute: AppTournamentsTournamentIdScoreRoute,
   }
 
@@ -1210,8 +1310,12 @@ interface ClubRouteChildren {
   ClubSlotsRoute: typeof ClubSlotsRoute
   ClubVouchersRoute: typeof ClubVouchersRoute
   ClubIndexRoute: typeof ClubIndexRoute
+  ClubEventsNewRoute: typeof ClubEventsNewRoute
   ClubMembersMemberIdRoute: typeof ClubMembersMemberIdRoute
+  ClubEventsIndexRoute: typeof ClubEventsIndexRoute
   ClubMembersIndexRoute: typeof ClubMembersIndexRoute
+  ClubEventsEventIdEditRoute: typeof ClubEventsEventIdEditRoute
+  ClubEventsEventIdParticipantsRoute: typeof ClubEventsEventIdParticipantsRoute
 }
 
 const ClubRouteChildren: ClubRouteChildren = {
@@ -1223,8 +1327,12 @@ const ClubRouteChildren: ClubRouteChildren = {
   ClubSlotsRoute: ClubSlotsRoute,
   ClubVouchersRoute: ClubVouchersRoute,
   ClubIndexRoute: ClubIndexRoute,
+  ClubEventsNewRoute: ClubEventsNewRoute,
   ClubMembersMemberIdRoute: ClubMembersMemberIdRoute,
+  ClubEventsIndexRoute: ClubEventsIndexRoute,
   ClubMembersIndexRoute: ClubMembersIndexRoute,
+  ClubEventsEventIdEditRoute: ClubEventsEventIdEditRoute,
+  ClubEventsEventIdParticipantsRoute: ClubEventsEventIdParticipantsRoute,
 }
 
 const ClubRouteWithChildren = ClubRoute._addFileChildren(ClubRouteChildren)

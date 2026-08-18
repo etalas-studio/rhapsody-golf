@@ -67,6 +67,71 @@ async function deliverInvoice(booking) {
 }
 
 /**
+ * Handle Midtrans webhook for event registrations (order_id prefix: EVT-).
+ * custom_field1 = registrationId (set at Snap token creation in event.service.js)
+ */
+async function handleEventWebhook({ order_id, transaction_status, fraud_status, payment_type, custom_field1: registrationId }) {
+  // Resolve registrationId from custom_field1 or notes fallback
+  let regId = registrationId;
+  if (!regId) {
+    // Fallback: order_id = EVT-{regId}-{timestamp}
+    const parts = order_id.split('-');
+    regId = parts.slice(1, -1).join('-'); // strip EVT- prefix and trailing timestamp
+  }
+
+  if (!regId) {
+    logger.warn('EVT webhook: cannot resolve registrationId', { order_id });
+    return;
+  }
+
+  const { data: reg } = await supabase
+    .from('event_registrations')
+    .select('id, status, tournament_id, user_id')
+    .eq('id', regId)
+    .single();
+
+  if (!reg) {
+    logger.warn('EVT webhook: registration not found', { order_id, regId });
+    return;
+  }
+
+  // Idempotency — skip terminal states
+  if (['Confirmed', 'CheckedIn', 'Cancelled'].includes(reg.status)) {
+    logger.info('EVT webhook: registration already settled', { regId, status: reg.status });
+    return;
+  }
+
+  const isSuccess =
+    (transaction_status === 'capture' && fraud_status === 'accept') ||
+    transaction_status === 'settlement';
+
+  const isFailed =
+    transaction_status === 'cancel' ||
+    transaction_status === 'deny' ||
+    transaction_status === 'expire';
+
+  if (isSuccess) {
+    await supabase
+      .from('event_registrations')
+      .update({ status: 'Confirmed', payment_tx_id: order_id })
+      .eq('id', regId);
+
+    logger.info('Event registration confirmed via Midtrans', { regId, orderId: order_id });
+  } else if (isFailed) {
+    await supabase
+      .from('event_registrations')
+      .update({ status: 'Cancelled' })
+      .eq('id', regId);
+
+    logger.info('Event registration cancelled — payment failed/expired', {
+      regId,
+      orderId: order_id,
+      transaction_status,
+    });
+  }
+}
+
+/**
  * Verify Midtrans webhook signature.
  * signature_key = SHA512(order_id + status_code + gross_amount + server_key)
  */
@@ -100,6 +165,12 @@ router.post('/midtrans-webhook', async (req, res) => {
   // Verify signature
   if (!verifySignature(order_id, status_code, gross_amount, signature_key)) {
     logger.warn('Midtrans webhook invalid signature', { order_id });
+    return;
+  }
+
+  // Route by order_id prefix
+  if (order_id?.startsWith('EVT-')) {
+    await handleEventWebhook({ order_id, transaction_status, fraud_status, payment_type, custom_field1: bookingId });
     return;
   }
 

@@ -130,18 +130,18 @@ enum CampaignStatus {
   Ended
 }
 
-enum TournamentStatus {
+enum EventStatus {
+  Draft
   Open
-  RegistrationClosed
-  Finished
+  Closed
+  Completed
+  Cancelled
 }
 
-enum TournamentRegStatus {
-  Registered
-  Waitlist
+enum EventRegistrationStatus {
+  PendingPayment
   Confirmed
   CheckedIn
-  Completed
   Cancelled
 }
 
@@ -216,7 +216,7 @@ model Club {
   vouchers       Voucher[]
   campaigns      Campaign[]
   scorecards     Scorecard[]
-  tournaments    Tournament[]
+  events         Event[]
   teeSlots       TeeSlot[]
   integration    ClubIntegration?
   brandingConfig ClubBrandingConfig?
@@ -257,7 +257,7 @@ model User {
   vouchers            Voucher[]
   voucherRedemptions  VoucherRedemption[]
   scorecards          Scorecard[]
-  tournamentRegs      TournamentRegistration[]
+  eventRegistrations  EventRegistration[]
   paymentMethods      PaymentMethod[]
   auditLogs           AuditLog[]
   clubAdmin           ClubAdmin?
@@ -299,14 +299,14 @@ model Booking {
   paymentStatus    PaymentStatus @default(Pending) @map("payment_status")
   partners         String[]      @default([])
   gameType         GameType      @default(Casual) @map("game_type")
-  tournamentId     String?       @map("tournament_id")
+  eventId          String?       @map("event_id")
   channelTag       String        @default("GH_APP") @map("channel_tag")
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
   club        Club               @relation(fields: [clubId], references: [id])
   user        User               @relation(fields: [userId], references: [id])
-  tournament  Tournament?        @relation(fields: [tournamentId], references: [id])
+  event       Event?             @relation(fields: [eventId], references: [id])
   voucher     Voucher?           @relation(fields: [voucherId], references: [id])
   visit       Visit?
   payments    PaymentTransaction[]
@@ -420,6 +420,7 @@ model Voucher {
   club        Club                @relation(fields: [clubId], references: [id])
   user        User?               @relation(fields: [userId], references: [id])
   redemptions VoucherRedemption[]
+  bookings    Booking[]
 
   @@map("vouchers")
 }
@@ -475,51 +476,61 @@ model Scorecard {
   @@map("scorecards")
 }
 
-model Tournament {
-  id                   String           @id @default(cuid())
-  clubId               String           @map("club_id")
+model Event {
+  id                   String      @id @default(cuid())
+  clubId               String      @map("club_id")
   title                String
-  date                 DateTime
-  status               TournamentStatus @default(Open)
-  participants         Int              @default(0)
-  maxParticipants      Int              @map("max_participants")
-  fee                  Int
-  format               String
   description          String
-  registrationDeadline DateTime         @map("registration_deadline")
-  shotgunTime          String           @map("shotgun_time")
-  prizePool            String           @map("prize_pool")
-  rules                String[]
-  includes             String[]
-  contact              String
-  schedule             Json
-  createdAt            DateTime         @default(now()) @map("created_at")
-  updatedAt            DateTime         @updatedAt @map("updated_at")
+  heroImageUrl         String?     @map("hero_image_url")
+  venue                String?
+  mapsUrl              String?     @map("maps_url")
+  date                 DateTime
+  startingTime         String      @map("starting_time")
+  registrationDeadline DateTime    @map("registration_deadline")
+  quota                Int
+  entryFee             Int         @map("entry_fee")
+  status               EventStatus @default(Draft)
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
 
-  club          Club                     @relation(fields: [clubId], references: [id])
-  registrations TournamentRegistration[]
+  club          Club                @relation(fields: [clubId], references: [id])
+  registrations EventRegistration[]
   bookings      Booking[]
 
-  @@map("tournaments")
+  @@map("events")
 }
 
-model TournamentRegistration {
-  id            String              @id @default(cuid())
-  tournamentId  String              @map("tournament_id")
-  userId        String              @map("user_id")
-  status        TournamentRegStatus @default(Registered)
-  registeredAt  DateTime            @default(now()) @map("registered_at")
-  flight        String?
-  teeTime       String?             @map("tee_time")
-  position      Int?
-  score         Int?
-  paymentStatus PaymentStatus       @default(Pending) @map("payment_status")
+model EventRegistration {
+  id           String                  @id @default(cuid())
+  eventId      String                  @map("event_id")
+  userId       String                  @map("user_id")
+  status       EventRegistrationStatus @default(PendingPayment)
+  totalFee     Int                     @default(0) @map("total_fee")
+  paymentTxId  String?                 @unique @map("payment_tx_id")
+  notes        String?
+  registeredAt DateTime                @default(now()) @map("registered_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id])
-  user       User       @relation(fields: [userId], references: [id])
+  event        Event              @relation(fields: [eventId], references: [id])
+  user         User               @relation(fields: [userId], references: [id])
+  participants EventParticipant[]
 
-  @@unique([tournamentId, userId])
-  @@map("tournament_registrations")
+  @@unique([eventId, userId])
+  @@map("event_registrations")
+}
+
+model EventParticipant {
+  id             String            @id @default(cuid())
+  registrationId String            @map("registration_id")
+  name           String
+  phone          String?
+  email          String?
+  isRegistrant   Boolean           @default(false) @map("is_registrant")
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  registration EventRegistration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@map("event_participants")
 }
 
 model TeeSlot {
@@ -568,7 +579,7 @@ model ClubBrandingConfig {
   ftPayment    Boolean @default(true) @map("ft_payment")
   ftLoyalty    Boolean @default(true) @map("ft_loyalty")
   ftVoucher    Boolean @default(true) @map("ft_voucher")
-  ftTournament Boolean @default(true) @map("ft_tournament")
+  ftEvents     Boolean @default(true) @map("ft_tournament")
   ftShopping   Boolean @default(false) @map("ft_shopping")
 
   club Club @relation(fields: [clubId], references: [id])

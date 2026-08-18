@@ -30,12 +30,12 @@ function CourseDetail() {
   useEffect(() => { bumpCourseView(); }, [courseId, bumpCourseView]);
 
   const { data: club, loading, error } = useClub(courseId);
-  const { data: tournamentData } = useTournaments({ clubId: courseId });
+  const { data: tournamentDataRaw } = useTournaments({ clubId: courseId });
   // ponytail: campaigns API requires club admin auth; showing empty until golfer-facing promotions endpoint is added
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: campaignData } = useAdminCampaigns((appMode as any) === "club_admin" ? courseId : "");
 
-  const tournaments = tournamentData?.tournaments ?? [];
+  const tournaments = tournamentDataRaw ?? [];
   const promos = (campaignData ?? []).filter((c) => c.status === "Active");
 
   // ApiClub lacks banner/logo/facilities/description — use theme_color as bg, graceful fallbacks elsewhere

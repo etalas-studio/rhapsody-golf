@@ -291,7 +291,7 @@ function ScoringPage() {
   const { data: t, loading: tLoading } = useTournament(tournamentId);
   const { data: myRegs, loading: regLoading } = useMyTournamentRegistrations();
 
-  const reg = (myRegs ?? []).find((r) => r.tournament_id === tournamentId);
+  const reg = (myRegs ?? []).find((r) => (r.event_id ?? r.tournament_id) === tournamentId);
 
   const [scorecard, dispatch] = useReducer(safeReducer, undefined, initState);
   const [currentHole, setCurrentHole] = useState(0);

@@ -1,213 +1,426 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { MobileShell } from "@/components/MobileShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-// ponytail: currentUser is auth stub — replace with supabase.auth in Phase 1
-import { currentUser, formatIDR } from "@/lib/mockData";
+import { formatIDR } from "@/lib/mockData";
 import { useApp } from "@/lib/appContext";
-import { useClub, useMyTournamentRegistrations, useTournament } from "@/lib/useApi";
+import { useEvent, useMyEventRegistration } from "@/lib/useApi";
 import { api } from "@/lib/api";
-import { Trophy, Calendar, Users, ChevronLeft, CheckCircle2, QrCode } from "lucide-react";
-import { useState } from "react";
+import { openSnap } from "@/lib/snap";
+import { CalendarDays, Users, MapPin, Clock, ChevronLeft, CheckCircle2, ExternalLink, Plus, Trash2, UserCircle, X, ZoomIn } from "lucide-react";
+import { format, parseISO, isPast } from "date-fns";
 import { toast } from "sonner";
+import { useState } from "react";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 export const Route = createFileRoute("/app/tournaments/$tournamentId")({
-  head: () => ({ meta: [{ title: "Tournament · Rhapsody App" }] }),
-  component: AppTournamentDetail,
+  head: () => ({ meta: [{ title: "Event · Rhapsody App" }] }),
+  component: AppEventDetail,
 });
 
-function AppTournamentDetail() {
+const playerSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  phone: z.string().optional(),
+  email: z.string().email("Invalid email format").optional().or(z.literal("")),
+});
+const formSchema = z.object({ players: z.array(playerSchema).min(1) });
+type FormValues = z.infer<typeof formSchema>;
+
+
+function AppEventDetail() {
   const { tournamentId } = Route.useParams();
-  const { isAuthenticated, requireAuth } = useApp();
-  const navigate = useNavigate();
+  const { isAuthenticated, requireAuth, user } = useApp();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  const { data: t, loading: tLoading } = useTournament(tournamentId);
-  const { data: club, loading: clubLoading } = useClub(t?.club_id);
-  const { data: myRegs } = useMyTournamentRegistrations();
+  const { data: event, loading } = useEvent(tournamentId);
+  const { data: myReg, refetch: refetchReg } = useMyEventRegistration(tournamentId);
 
-  const myReg = (myRegs ?? []).find((r) => r.tournament_id === tournamentId);
-  const [regOverride, setRegOverride] = useState<"registered" | "cancelled" | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [cancelOpen, setCancelOpen] = useState(false);
+  const { control, handleSubmit, watch, reset, formState: { errors } } = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      players: [{ name: user?.name ?? "", phone: (user as any)?.phone ?? "", email: user?.email ?? "" }],
+    },
+  });
+  const { fields, append, remove } = useFieldArray({ control, name: "players" });
+  const players = watch("players");
 
-  const effectiveReg = regOverride === "registered"
-    ? { status: "Registered" }
-    : regOverride === "cancelled"
-    ? null
-    : myReg;
-
-  const loading = tLoading || clubLoading;
+  const slotsAvailable = event ? (event.slots_available ?? (event.quota - (event.slots_used ?? 0))) : 0;
+  const totalFee = event ? event.entry_fee * players.length : 0;
+  const canAddPlayer = players.length < slotsAvailable;
 
   if (loading) {
     return (
       <MobileShell>
-        <div className="px-4 py-5 space-y-3">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-7 w-64" />
-          <div className="grid grid-cols-2 gap-2">
-            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+        <div className="space-y-0">
+          <Skeleton className="w-full h-48" />
+          <div className="px-4 py-4 space-y-3">
+            <Skeleton className="h-7 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+            <div className="grid grid-cols-2 gap-2">
+              {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+            </div>
           </div>
         </div>
       </MobileShell>
     );
   }
 
-  if (!t) {
+  if (!event) {
     return (
       <MobileShell>
-        <div className="px-4 py-10 text-center text-muted-foreground">Tournament not found.</div>
+        <div className="px-4 py-10 text-center text-muted-foreground">Event not found.</div>
       </MobileShell>
     );
   }
 
-  const tid = t.id;
-  const tname = t.name;
-  const registered = t.registered_count ?? 0;
-  const isFull = registered >= t.max_players;
-  const isOpen = t.status === "Open";
-  const canRegister = isOpen && !effectiveReg;
-  const canCancel = !!effectiveReg && ["Registered", "Confirmed", "Waitlist"].includes(effectiveReg.status);
+  const isFull = slotsAvailable <= 0;
+  const deadlinePast = isPast(parseISO(event.registration_deadline));
+  const isOpen = event.status === "Open";
+  const isRegistered = myReg && ["Confirmed", "CheckedIn", "PendingPayment"].includes(myReg.status);
+  const canRegister = isOpen && !deadlinePast && !isFull && !isRegistered;
+  const canCancel = isRegistered && !deadlinePast && myReg.status !== "CheckedIn";
 
-  async function handleRegister() {
-    const doReg = async () => {
-      try {
-        // ponytail: payment_method not in register body v1
-        await api.tournaments.register(tid, { players: undefined });
-      } catch {
-        // ponytail: optimistic update; real error handling when API is live
-      }
-      setRegOverride("registered");
-      setConfirmOpen(false);
-      toast.success("Registered!", { description: tname });
+  const ctaLabel = isFull ? "Quota Full"
+    : deadlinePast ? "Registration Closed"
+    : !isOpen ? `Registration ${event.status}`
+    : "Register";
+
+  function openRegister() {
+    const open = () => {
+      reset({ players: [{ name: user?.name ?? "", phone: (user as any)?.phone ?? "", email: user?.email ?? "" }] });
+      setSheetOpen(true);
     };
     if (!isAuthenticated) {
       requireAuth({
         title: "Sign up to register",
-        description: `Join ${tname} — one Rhapsody ID across every club.`,
-        onSuccess: doReg,
+        description: `Join ${event!.title} — one Rhapsody ID across every club.`,
+        onSuccess: open,
       });
       return;
     }
-    await doReg();
+    open();
+  }
+
+  async function onSubmit(values: FormValues) {
+    if (!event) return;
+    setSubmitting(true);
+    try {
+      const result = await api.events.register(tournamentId, { players: values.players });
+
+      if (result.status === "Confirmed") {
+        toast.success("Registration successful!");
+        setSheetOpen(false);
+        refetchReg();
+        return;
+      }
+
+      if (result.snapToken) {
+        openSnap(result.snapToken, {
+          onSuccess: () => {
+            toast.success("Payment successful! Registration confirmed.");
+            setSheetOpen(false);
+            refetchReg();
+          },
+          onPending: () => {
+            toast.info("Payment pending, registration will be confirmed automatically.");
+            setSheetOpen(false);
+            refetchReg();
+          },
+          onError: () => { toast.error("Payment failed."); setSubmitting(false); },
+          onClose: () => { setSubmitting(false); },
+        });
+      }
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Registration failed");
+      setSubmitting(false);
+    }
   }
 
   async function handleCancel() {
     try {
-      await api.tournaments.cancelRegistration(tid);
-    } catch {
-      // ponytail: optimistic
+      await api.events.cancelRegistration(tournamentId);
+      toast.success("Registration cancelled.");
+      refetchReg();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to cancel");
     }
-    setRegOverride("cancelled");
-    setCancelOpen(false);
-    toast.success("Registration cancelled.");
   }
 
   return (
     <MobileShell>
-      <div className="px-4 py-5 space-y-5">
+      {/* Hero image — tap to preview */}
+      {event.hero_image_url && (
+        <button
+          type="button"
+          className="w-full relative block"
+          onClick={() => setLightboxOpen(true)}
+        >
+          <img src={event.hero_image_url} alt={event.title} className="w-full h-64 object-cover" />
+          {/* Always-visible tap hint */}
+          <div className="absolute bottom-2 right-2 bg-black/50 rounded-full p-1.5">
+            <ZoomIn className="h-4 w-4 text-white" />
+          </div>
+        </button>
+      )}
+
+      {/* Lightbox */}
+      {lightboxOpen && event.hero_image_url && (
+        <div
+          className="fixed inset-0 z-50 bg-black flex flex-col"
+          style={{ touchAction: "none" }}
+          onClick={() => setLightboxOpen(false)}
+        >
+          <div className="flex justify-end p-4 shrink-0">
+            <button
+              type="button"
+              className="bg-white/10 rounded-full p-2"
+              onClick={() => setLightboxOpen(false)}
+            >
+              <X className="h-6 w-6 text-white" />
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center overflow-hidden px-2 pb-8">
+            <img
+              src={event.hero_image_url}
+              alt={event.title}
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="px-4 py-4 space-y-5">
         {/* Back */}
         <Link to="/app/tournaments" className="flex items-center gap-1 text-sm text-muted-foreground -ml-1">
-          <ChevronLeft className="h-4 w-4" /> Tournaments
+          <ChevronLeft className="h-4 w-4" /> Events
         </Link>
 
         {/* Header */}
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Badge variant="outline" className="text-xs">{t.format}</Badge>
-            <Badge className={t.status === "Open" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}>
-              {t.status}
-            </Badge>
-          </div>
-          <h1 className="font-display text-2xl">{t.name}</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{club?.name ?? t.club_id}</p>
+          <Badge className={isOpen && !deadlinePast ? "bg-primary text-primary-foreground hover:bg-primary" : "bg-muted text-muted-foreground hover:bg-muted"}>
+            {deadlinePast && isOpen ? "Closed" : event.status}
+          </Badge>
+          <h1 className="font-display text-2xl mt-1">{event.title}</h1>
+          <p className="text-sm text-muted-foreground">{event.clubs?.name}</p>
         </div>
 
-        {/* Stats */}
+        {/* Stats grid */}
         <div className="grid grid-cols-2 gap-2">
-          {[
-            { icon: <Calendar className="h-3.5 w-3.5" />, label: "Date", value: t.start_date },
-            { icon: <Trophy className="h-3.5 w-3.5" />, label: "Entry fee", value: formatIDR(t.entry_fee) },
-            { icon: <Users className="h-3.5 w-3.5" />, label: "Players", value: `${registered}/${t.max_players}` },
-            { icon: <Calendar className="h-3.5 w-3.5" />, label: "Register by", value: t.registration_deadline ?? "—" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl border bg-card p-3">
-              <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase tracking-wider">{s.icon}{s.label}</p>
-              <p className="font-medium text-sm mt-1">{s.value}</p>
-            </div>
-          ))}
+          <StatCard icon={<CalendarDays className="h-3.5 w-3.5" />} label="Date">
+            {format(parseISO(event.date), "d MMM yyyy")}
+          </StatCard>
+          <StatCard icon={<Clock className="h-3.5 w-3.5" />} label="Starting time">
+            {event.starting_time}
+          </StatCard>
+          <StatCard icon={<Users className="h-3.5 w-3.5" />} label="Quota">
+            {event.slots_used ?? 0} / {event.quota} registered
+          </StatCard>
+          <StatCard icon={<CalendarDays className="h-3.5 w-3.5" />} label="Deadline">
+            {format(parseISO(event.registration_deadline), "d MMM yyyy")}
+          </StatCard>
         </div>
+
+        {/* Venue */}
+        {event.venue && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span>{event.venue}</span>
+            </div>
+            <div className="rounded-xl overflow-hidden border h-40">
+              <iframe
+                title="Location map"
+                width="100%"
+                height="100%"
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                src={`https://maps.google.com/maps?q=${encodeURIComponent(event.venue)}&output=embed`}
+                className="border-0"
+              />
+            </div>
+            <a
+              href={event.maps_url ?? `https://maps.google.com?q=${encodeURIComponent(event.venue)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 w-full rounded-xl border bg-card py-3 text-sm font-medium hover:bg-muted transition"
+            >
+              <ExternalLink className="h-4 w-4 text-primary" />
+              Open in Google Maps
+            </a>
+          </div>
+        )}
 
         {/* Description */}
-        {t.description && (
-          <p className="text-sm text-muted-foreground leading-relaxed">{t.description}</p>
+        {event.description && (
+          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+            {event.description}
+          </p>
         )}
 
-        {/* Registered pass */}
-        {effectiveReg && (
-          <div className="rounded-xl border border-primary/40 bg-primary/5 p-4 text-center">
-            <CheckCircle2 className="h-7 w-7 text-primary mx-auto mb-2" />
-            <p className="font-semibold text-sm">You're registered</p>
-            <p className="text-xs text-muted-foreground mb-3">{effectiveReg.status}</p>
-            <QrCode className="h-20 w-20 text-primary mx-auto" />
-            <p className="font-mono text-xs mt-2">{currentUser.rhapsody_id}</p>
+        {/* Registered badge */}
+        {isRegistered && (
+          <div className="rounded-xl border border-primary/40 bg-primary/5 p-4 space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+                <p className="font-semibold text-sm">You're registered</p>
+              </div>
+              <Badge className={
+                myReg!.status === "Confirmed" ? "bg-primary text-primary-foreground hover:bg-primary text-xs" :
+                myReg!.status === "CheckedIn" ? "bg-emerald-500 text-white hover:bg-emerald-500 text-xs" :
+                "bg-amber-500 text-white hover:bg-amber-500 text-xs"
+              }>
+                {myReg!.status}
+              </Badge>
+            </div>
+
+            {/* Players */}
+            {myReg!.event_participants && myReg!.event_participants.length > 0 && (
+              <>
+                <Separator className="opacity-30" />
+                <div className="space-y-2">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Players ({myReg!.event_participants.length})
+                  </p>
+                  {myReg!.event_participants.map((p) => (
+                    <div key={p.id} className="flex items-center gap-2">
+                      <UserCircle className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm">{p.name}</span>
+                      {p.is_registrant && (
+                        <span className="text-[10px] text-muted-foreground ml-auto">you</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {/* CTAs */}
+        {/* Entry fee */}
+        <div className="flex items-center justify-between rounded-xl border bg-card px-4 py-3">
+          <span className="text-sm text-muted-foreground">Registration fee</span>
+          <span className="font-semibold">
+            {event.entry_fee === 0 ? "Free" : formatIDR(event.entry_fee)}
+            <span className="text-xs font-normal text-muted-foreground"> / person</span>
+          </span>
+        </div>
+
+        {/* CTA */}
         {canRegister && (
-          <Button className="w-full" onClick={() => setConfirmOpen(true)} disabled={isFull && !isOpen}>
-            {isFull ? "Join waitlist" : "Register now"} · {formatIDR(t.entry_fee)}
-          </Button>
+          <Button className="w-full" onClick={openRegister}>{ctaLabel}</Button>
         )}
-
+        {!canRegister && !isRegistered && (
+          <Button className="w-full" disabled>{ctaLabel}</Button>
+        )}
         {canCancel && (
-          <Button variant="outline" className="w-full" onClick={() => setCancelOpen(true)}>
-            Cancel registration
-          </Button>
-        )}
-
-        {t.status === "Open" && effectiveReg && (
-          <Button variant="secondary" className="w-full" asChild>
-            <Link to="/app/tournaments/$tournamentId/score" params={{ tournamentId }}>
-              Submit score
-            </Link>
+          <Button variant="outline" className="w-full text-destructive border-destructive/30" onClick={handleCancel}>
+            Cancel Registration
           </Button>
         )}
       </div>
 
-      {/* Register confirm */}
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent className="max-w-[360px] rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Register for {t.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {formatIDR(t.entry_fee)} entry fee · {t.format} · {t.start_date}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRegister}>Confirm</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Register Sheet */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="bottom" className="h-[90vh] overflow-y-auto rounded-t-2xl max-w-md mx-auto left-0 right-0 px-5">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="font-display text-xl">Register for Event</SheetTitle>
+            <p className="text-sm text-muted-foreground">{event.title}</p>
+          </SheetHeader>
 
-      {/* Cancel confirm */}
-      <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <AlertDialogContent className="max-w-[360px] rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel registration?</AlertDialogTitle>
-            <AlertDialogDescription>You will lose your spot in {t.name}.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep registration</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Cancel
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            {/* Player list */}
+            <div className="space-y-4">
+              {fields.map((field, index) => (
+                <div key={field.id} className="rounded-xl border bg-card p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <UserCircle className="h-3.5 w-3.5" />
+                      {index === 0 ? "You (Registrant)" : `Player ${index + 1}`}
+                    </p>
+                    {index > 0 && (
+                      <button type="button" onClick={() => remove(index)}
+                        className="text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-xs">Name *</Label>
+                      <Controller control={control} name={`players.${index}.name`}
+                        render={({ field }) => (
+                          <Input {...field} placeholder="Full name"
+                            className={errors.players?.[index]?.name ? "border-destructive" : ""} />
+                        )} />
+                      {errors.players?.[index]?.name && (
+                        <p className="text-xs text-destructive mt-1">{errors.players[index]?.name?.message}</p>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Phone</Label>
+                        <Controller control={control} name={`players.${index}.phone`}
+                          render={({ field }) => <Input {...field} placeholder="08xx" type="tel" />} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Email</Label>
+                        <Controller control={control} name={`players.${index}.email`}
+                          render={({ field }) => <Input {...field} placeholder="email@..." type="email" />} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {canAddPlayer && (
+              <Button type="button" variant="outline" className="w-full gap-2"
+                onClick={() => append({ name: "", phone: "", email: "" })}>
+                <Plus className="h-4 w-4" /> Add Player
+              </Button>
+            )}
+
+            <Separator />
+
+            {/* Summary */}
+            <div className="rounded-xl border bg-card p-4 space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Summary</p>
+              <div className="flex justify-between text-sm">
+                <span>{players.length} player{players.length !== 1 ? "s" : ""} × {event.entry_fee === 0 ? "Free" : formatIDR(event.entry_fee)}</span>
+                <span className="font-semibold">{totalFee === 0 ? "Free" : formatIDR(totalFee)}</span>
+              </div>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? "Processing..." : totalFee === 0 ? "Confirm Registration" : `Pay ${formatIDR(totalFee)}`}
+            </Button>
+          </form>
+        </SheetContent>
+      </Sheet>
     </MobileShell>
+  );
+}
+
+function StatCard({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border bg-card p-3">
+      <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase tracking-wider">
+        {icon}{label}
+      </p>
+      <p className="font-medium text-sm mt-1">{children}</p>
+    </div>
   );
 }

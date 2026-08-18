@@ -52,6 +52,7 @@ const clubNav: NavItem[] = [
   { to: "/club/slots", label: "Tee Time Manager", icon: Grid3x3 },
   // { to: "/club/promotions", label: "Promotions", icon: Megaphone },
   { to: "/club/vouchers", label: "Vouchers", icon: Ticket },
+  { to: "/club/events", label: "Events", icon: Trophy },
   // { to: "/club/loyalty", label: "Loyalty Rules", icon: Sparkles },
   // { to: "/club/analytics", label: "Revenue & Analytics", icon: BarChart3 },
 ];

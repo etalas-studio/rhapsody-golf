@@ -176,39 +176,79 @@ export const api = {
     },
   },
 
-  // ─── Tournaments ───────────────────────────────────────────────────────────
+  // ─── Events ────────────────────────────────────────────────────────────────
 
-  tournaments: {
-    list: (params?: { clubId?: string; status?: string; format?: string; limit?: number; offset?: number }) => {
-      const q = new URLSearchParams(params as Record<string, string>).toString();
-      return apiFetch<{ tournaments: ApiTournament[]; total: number }>(`/api/tournaments${q ? `?${q}` : ""}`, { auth: false });
+  events: {
+    list: (params?: { clubId?: string; status?: string; limit?: number; offset?: number }) => {
+      const q = new URLSearchParams(
+        Object.fromEntries(Object.entries(params ?? {}).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+      ).toString();
+      return apiFetch<{ events: ApiEvent[] }>(`/api/events${q ? `?${q}` : ""}`, { auth: false }).then((r) => r.events);
     },
 
     get: (id: string) =>
-      apiFetch<{ tournament: ApiTournament }>(`/api/tournaments/${id}`, { auth: false }).then((r) => r.tournament),
+      apiFetch<{ event: ApiEvent }>(`/api/events/${id}`, { auth: false }).then((r) => r.event),
 
-    leaderboard: (id: string, flight?: string) => {
-      const q = flight ? `?flight=${flight}` : "";
-      return apiFetch<{ leaderboard: ApiLeaderboardEntry[] }>(`/api/tournaments/${id}/leaderboard${q}`, { auth: false }).then((r) => r.leaderboard);
-    },
+    myRegistration: (id: string) =>
+      apiFetch<{ registration: ApiEventRegistration | null }>(`/api/events/${id}/my-registration`).then((r) => r.registration),
 
     myRegistrations: () =>
-      apiFetch<{ registrations: ApiTournamentRegistration[] }>("/api/tournaments/my/registrations").then((r) => r.registrations),
+      apiFetch<{ registrations: ApiEventRegistration[] }>("/api/events/my-registrations").then((r) => r.registrations),
 
-    register: (id: string, body: { players?: string[] }) =>
-      apiFetch<ApiTournamentRegistration>(`/api/tournaments/${id}/register`, {
+    register: (id: string, body: { players: { name: string; phone?: string; email?: string }[] }) =>
+      apiFetch<{ snapToken?: string; registrationId: string; status?: string }>(`/api/events/${id}/register`, {
         method: "POST",
         body: JSON.stringify(body),
       }),
 
     cancelRegistration: (id: string) =>
-      apiFetch<void>(`/api/tournaments/${id}/register`, { method: "DELETE" }),
+      apiFetch<{ cancelled: boolean }>(`/api/events/${id}/my-registration`, { method: "DELETE" }),
+  },
 
-    submitScore: (id: string, body: ApiScoreSubmit) =>
-      apiFetch<void>(`/api/tournaments/${id}/score`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      }),
+  // ─── Admin Events ───────────────────────────────────────────────────────────
+
+  adminEvents: {
+    list: (clubId: string, params?: { status?: string }) => {
+      const raw: Record<string, string> = { clubId };
+      if (params?.status) raw.status = params.status;
+      const q = new URLSearchParams(raw).toString();
+      return apiFetch<{ events: ApiEvent[] }>(`/api/admin/events?${q}`).then((r) => r.events);
+    },
+
+    get: (id: string, clubId: string) =>
+      apiFetch<{ event: ApiEvent }>(`/api/admin/events/${id}?clubId=${clubId}`).then((r) => r.event),
+
+    create: (body: ApiEventFormData & { clubId: string }) =>
+      apiFetch<{ event: ApiEvent }>("/api/admin/events", { method: "POST", body: JSON.stringify(body) }).then((r) => r.event),
+
+    update: (id: string, clubId: string, body: Partial<ApiEventFormData>) =>
+      apiFetch<{ event: ApiEvent }>(`/api/admin/events/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ clubId, ...body }),
+      }).then((r) => r.event),
+
+    updateStatus: (id: string, clubId: string, status: string) =>
+      apiFetch<{ event: ApiEvent }>(`/api/admin/events/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ clubId, status }),
+      }).then((r) => r.event),
+
+    delete: (id: string, clubId: string) =>
+      apiFetch<{ deleted: boolean }>(`/api/admin/events/${id}?clubId=${clubId}`, { method: "DELETE" }),
+
+    registrations: (id: string, clubId: string, status?: string) => {
+      const q = new URLSearchParams({ clubId, ...(status ? { status } : {}) }).toString();
+      return apiFetch<{ registrations: ApiEventRegistration[] }>(`/api/admin/events/${id}/registrations?${q}`).then((r) => r.registrations);
+    },
+
+    updateRegistration: (eventId: string, regId: string, clubId: string, status: string) =>
+      apiFetch<{ registration: ApiEventRegistration }>(`/api/admin/events/${eventId}/registrations/${regId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ clubId, status }),
+      }).then((r) => r.registration),
+
+    exportCsvUrl: (id: string, clubId: string) =>
+      `/api/admin/events/${id}/registrations/export-csv?clubId=${clubId}`,
   },
 
   // ─── Scorecards ────────────────────────────────────────────────────────────
@@ -343,8 +383,8 @@ export const api = {
       list: () =>
         apiFetch<{ clubs: ApiSuperAdminClub[] }>("/api/superadmin/clubs").then((r) => r.clubs),
       create: (body: {
-        name: string; short_name: string; location: string; region: string;
-        description: string; theme_color?: string; app_type?: string;
+        name: string; short_name?: string; location?: string; region?: string;
+        description?: string; theme_color?: string; app_type?: string;
         starting_price?: number; facilities?: string[];
       }) =>
         apiFetch<{ club: { id: string; name: string } }>("/api/superadmin/clubs", {
@@ -403,6 +443,27 @@ export const api = {
         "/api/superadmin/generate-tee-slots",
         { method: "POST", body: JSON.stringify(clubId ? { club_id: clubId } : {}) }
       ),
+  },
+
+  // ─── Tournaments (legacy alias → events) ──────────────────────────────────
+  // ponytail: these stubs keep golfer.tournaments.* pages from crashing.
+  // Remove once golfer.* tournament pages are migrated to app.tournaments.*
+
+  tournaments: {
+    list: (params?: { clubId?: string; status?: string }) =>
+      apiFetch<ApiEvent[]>(`/api/events${params?.clubId ? `?clubId=${params.clubId}` : ""}`),
+    get: (id: string) => apiFetch<ApiEvent>(`/api/events/${id}`),
+    register: (id: string, body: unknown) =>
+      apiFetch<{ registrationId: string; snapToken?: string; status?: string }>(`/api/events/${id}/register`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    cancelRegistration: (id: string) =>
+      apiFetch<void>(`/api/events/${id}/my-registration`, { method: "DELETE" }),
+    submitScore: (id: string, body: unknown) =>
+      Promise.resolve({ ok: true }), // stub — events don't have scoring yet
+    myRegistrations: () =>
+      apiFetch<ApiEventRegistration[]>("/api/events/my-registrations"),
   },
 
   // ─── Payments ──────────────────────────────────────────────────────────────
@@ -502,38 +563,85 @@ export interface ApiVoucher {
   is_public: boolean;
 }
 
-export interface ApiTournament {
+export interface ApiEvent {
   id: string;
   club_id: string;
-  club_name?: string;
-  name: string;
-  description: string | null;
-  format: string;
-  start_date: string;
-  end_date: string;
+  title: string;
+  description: string;
+  hero_image_url: string | null;
+  venue: string | null;
+  maps_url: string | null;
+  date: string;
+  starting_time: string;
   registration_deadline: string;
-  max_players: number;
+  quota: number;
   entry_fee: number;
   status: string;
-  handicap_basis: string | null;
-  prize_pool: number | null;
+  slots_used?: number;
+  slots_available?: number;
+  clubs?: { id: string; name: string; short_name: string; logo_url: string | null; banner_url?: string | null };
+  registrations?: ApiEventRegistration[];
+  /** @deprecated use title */
+  name?: string;
+  /** @deprecated use date */
+  start_date?: string;
+  /** @deprecated use date */
+  end_date?: string;
+  /** @deprecated event no longer has format */
+  format?: string;
+  /** @deprecated use quota */
+  max_players?: number;
+  /** @deprecated not applicable */
+  handicap_basis?: string;
+  /** @deprecated use slots_used */
   registered_count?: number;
+  /** @deprecated event has no prize pool */
+  prize_pool?: string;
 }
 
-export interface ApiTournamentList {
-  tournaments: ApiTournament[];
-  total: number;
+export interface ApiEventParticipant {
+  id: string;
+  registration_id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  is_registrant: boolean;
 }
 
-export interface ApiTournamentRegistration {
+export interface ApiEventRegistration {
   id: string;
   tournament_id: string;
-  tournament?: ApiTournament;
+  /** @deprecated use tournament_id */
+  event_id?: string;
   user_id: string;
   status: string;
-  team_name: string | null;
+  total_fee: number;
+  payment_tx_id: string | null;
+  notes: string | null;
   registered_at: string;
+  event_participants?: ApiEventParticipant[];
+  events?: Pick<ApiEvent, "id" | "title" | "date" | "starting_time" | "venue" | "hero_image_url"> & { clubs?: { name: string } };
+  /** @deprecated use events */
+  tournament?: { id: string; name: string; date: string; format?: string; club_id: string };
+  users?: { id: string; name: string; email: string; phone: string | null; rhapsody_id: string };
 }
+
+export interface ApiEventFormData {
+  title: string;
+  description: string;
+  venue: string;
+  maps_url?: string;
+  date: string;
+  starting_time: string;
+  registration_deadline: string;
+  quota: number;
+  entry_fee: number;
+  hero_image_url?: string;
+}
+
+// Legacy aliases kept so existing files (scorecards, members) that import ApiTournament don't break
+export type ApiTournament = ApiEvent;
+export type ApiTournamentRegistration = ApiEventRegistration;
 
 export interface ApiLeaderboardEntry {
   position: number;

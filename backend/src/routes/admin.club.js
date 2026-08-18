@@ -302,7 +302,7 @@ router.get('/analytics', scopeClub, async (req, res) => {
       .in('status', ['CheckedIn', 'Completed']),
 
     supabase
-      .from('tournaments')
+      .from('events')
       .select('id', { count: 'exact', head: true })
       .eq('club_id', req.clubId),
 

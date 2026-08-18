@@ -30,7 +30,7 @@ function HistoryDetail() {
 
   const { data: club, loading: clubLoading } = useClub(clubId);
   const { data: apiCards } = useScorecards();
-  const { data: tournamentData } = useTournaments({ clubId });
+  const { data: tournamentList_ } = useTournaments({ clubId });
 
   const myRounds = bookings
     .filter((b) => b.club_id === clubId)
@@ -42,9 +42,11 @@ function HistoryDetail() {
     return myCards.find((s) => s.played_at.slice(0, 10) === date);
   };
 
-  const tournamentList = tournamentData?.tournaments ?? [];
-  const findTournament = (gameType: string) =>
-    gameType === "Tournament" ? tournamentList[0] : undefined;
+  const tournamentList = tournamentList_ ?? [];
+  const findTournament = (gameType: string): { name: string; format: string } | undefined => {
+    const ev = gameType === "Tournament" ? tournamentList[0] : undefined;
+    return ev ? { name: ev.title, format: ev.format ?? "Event" } : undefined;
+  };
 
   const [selectedId, setSelectedId] = useState<string>(roundId ?? myRounds[0]?.id ?? "");
 

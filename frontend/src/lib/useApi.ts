@@ -15,6 +15,8 @@ import type {
   ApiCampaign,
   ApiClub,
   ApiClubAnalytics,
+  ApiEvent,
+  ApiEventRegistration,
   ApiLeaderboardEntry,
   ApiLoyaltyBalance,
   ApiLoyaltyHistory,
@@ -25,7 +27,6 @@ import type {
   ApiTeeSheetBooking,
   ApiTeeSlot,
   ApiTournament,
-  ApiTournamentList,
   ApiTournamentRegistration,
   ApiVoucher,
   ApiAuditList,
@@ -153,34 +154,63 @@ export function useAdminVouchers(clubId?: string) {
 
 // ─── Tournaments ──────────────────────────────────────────────────────────────
 
-export function useTournaments(params?: {
-  clubId?: string; status?: string; format?: string; limit?: number; offset?: number;
-}) {
-  return useQuery<ApiTournamentList>(
-    () => api.tournaments.list(params),
-    [params?.clubId, params?.status, params?.format, params?.limit, params?.offset]
+export function useEvents(params?: { clubId?: string; status?: string; limit?: number; offset?: number }) {
+  return useQuery<ApiEvent[]>(
+    () => api.events.list(params),
+    [params?.clubId, params?.status, params?.limit, params?.offset]
   );
 }
 
-export function useTournament(id: string | undefined) {
-  return useQuery<ApiTournament>(() => api.tournaments.get(id!), [id]);
+export function useEvent(id: string | undefined) {
+  return useQuery<ApiEvent>(() => api.events.get(id!), [id], { skip: !id });
 }
 
-export function useLeaderboard(id: string | undefined, flight?: string) {
-  return useQuery<ApiLeaderboardEntry[]>(
-    () => api.tournaments.leaderboard(id!, flight),
-    [id, flight]
-  );
-}
-
-export function useMyTournamentRegistrations() {
+export function useMyEventRegistration(eventId: string | undefined) {
   const { isAuthenticated } = useApp();
-  return useQuery<ApiTournamentRegistration[]>(
-    () => api.tournaments.myRegistrations(),
+  return useQuery<ApiEventRegistration | null>(
+    () => api.events.myRegistration(eventId!),
+    [eventId],
+    { skip: !isAuthenticated || !eventId }
+  );
+}
+
+export function useMyEventRegistrations() {
+  const { isAuthenticated } = useApp();
+  return useQuery<ApiEventRegistration[]>(
+    () => api.events.myRegistrations(),
     [],
     { skip: !isAuthenticated }
   );
 }
+
+export function useAdminEvents(clubId: string | undefined, status?: string) {
+  return useQuery<ApiEvent[]>(
+    () => api.adminEvents.list(clubId!, { status }),
+    [clubId, status],
+    { skip: !clubId }
+  );
+}
+
+export function useAdminEvent(id: string | undefined, clubId: string | undefined) {
+  return useQuery<ApiEvent>(
+    () => api.adminEvents.get(id!, clubId!),
+    [id, clubId],
+    { skip: !id || !clubId }
+  );
+}
+
+export function useAdminEventRegistrations(eventId: string | undefined, clubId: string | undefined, status?: string) {
+  return useQuery<ApiEventRegistration[]>(
+    () => api.adminEvents.registrations(eventId!, clubId!, status),
+    [eventId, clubId, status],
+    { skip: !eventId || !clubId }
+  );
+}
+
+// Legacy — kept so existing imports don't break
+export const useTournaments = useEvents;
+export const useTournament = useEvent;
+export const useMyTournamentRegistrations = useMyEventRegistrations;
 
 // ─── Scorecards ───────────────────────────────────────────────────────────────
 
@@ -346,7 +376,6 @@ export type {
   ApiTeeSheetBooking,
   ApiTeeSlot,
   ApiTournament,
-  ApiTournamentList,
   ApiTournamentRegistration,
   ApiVoucher,
   ApiAuditList,

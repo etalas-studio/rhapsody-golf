@@ -105,7 +105,7 @@ function AppLoyalty() {
             {showRedeem && (
               <Button size="sm" className="h-7 text-xs px-3 shrink-0 shadow-glow"
                 onClick={() => {
-                  if ((v.type === "Green Fee" || v.type === "GreenFee") && v.club_id) {
+                  if (v.type === "Green Fee" && v.club_id) {
                     navigate({ to: "/app/courses/$courseId", params: { courseId: v.club_id } });
                   } else {
                     toast.success("Voucher redeemed (mock)");
