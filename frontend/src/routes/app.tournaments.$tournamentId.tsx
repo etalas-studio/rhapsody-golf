@@ -124,20 +124,16 @@ function AppEventDetail() {
       }
 
       if (result.snapToken) {
-        openSnap(result.snapToken, {
-          onSuccess: () => {
-            toast.success("Payment successful! Registration confirmed.");
-            setSheetOpen(false);
-            refetchReg();
-          },
-          onPending: () => {
-            toast.info("Payment pending, registration will be confirmed automatically.");
-            setSheetOpen(false);
-            refetchReg();
-          },
-          onError: () => { toast.error("Payment failed."); setSubmitting(false); },
-          onClose: () => { setSubmitting(false); },
-        });
+        // Close Sheet first so its overlay doesn't intercept Snap iframe clicks
+        setSheetOpen(false);
+        setTimeout(() => {
+          openSnap(result.snapToken!, {
+            onSuccess: () => { toast.success("Payment successful! Registration confirmed."); refetchReg(); },
+            onPending: () => { toast.info("Payment pending, registration will be confirmed automatically."); refetchReg(); },
+            onError: () => { toast.error("Payment failed."); setSubmitting(false); },
+            onClose: () => { setSubmitting(false); },
+          });
+        }, 300);
       }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Registration failed");

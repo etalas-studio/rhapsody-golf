@@ -249,12 +249,16 @@ function RegDetail({ reg: r, onPaid }: { reg: ApiEventRegistration; onPaid?: () 
     setPaying(true);
     try {
       const { snap_token } = await api.events.snapToken(r.tournament_id);
-      openSnap(snap_token, {
-        onSuccess: () => { toast.success("Payment successful! Registration confirmed."); onPaid?.(); },
-        onPending: () => { toast.info("Payment pending, will be confirmed automatically."); onPaid?.(); },
-        onError: () => { toast.error("Payment failed."); setPaying(false); },
-        onClose: () => { setPaying(false); },
-      });
+      // Close Sheet first so its overlay doesn't intercept Snap iframe clicks
+      onPaid?.();
+      setTimeout(() => {
+        openSnap(snap_token, {
+          onSuccess: () => { toast.success("Payment successful! Registration confirmed."); },
+          onPending: () => { toast.info("Payment pending, will be confirmed automatically."); },
+          onError: () => { toast.error("Payment failed."); setPaying(false); },
+          onClose: () => { setPaying(false); },
+        });
+      }, 300);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load payment";
       if (msg.includes("expired") || msg.includes("unavailable")) {
