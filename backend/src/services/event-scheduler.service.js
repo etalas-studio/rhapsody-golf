@@ -36,7 +36,7 @@ async function expireStaleEventRegistrations() {
 
   const { data, error } = await supabase
     .from('event_registrations')
-    .update({ status: 'Cancelled' })
+    .delete()
     .eq('status', 'PendingPayment')
     .lt('registered_at', cutoff)
     .select('id');
