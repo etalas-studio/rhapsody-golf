@@ -240,13 +240,31 @@ async function registerForEvent({ eventId, userId, players }) {
     throw new Error('Payment gateway error, please try again');
   }
 
-  // Store order_id reference in notes for webhook lookup
+  // Store snap_token + order_id (token valid 24h, used for resume payment)
   await supabase
     .from('event_registrations')
-    .update({ notes: `order_id:${orderId}` })
+    .update({ notes: `order_id:${orderId}`, snap_token: snapToken })
     .eq('id', reg.id);
 
   return { snapToken, registrationId: reg.id };
+}
+
+/**
+ * Get stored snap_token for a PendingPayment registration (resume payment).
+ */
+async function getEventSnapToken({ eventId, userId }) {
+  const { data, error } = await supabase
+    .from('event_registrations')
+    .select('id, status, snap_token')
+    .eq('tournament_id', eventId)
+    .eq('user_id', userId)
+    .eq('status', 'PendingPayment')
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error('No pending payment found');
+  if (!data.snap_token) throw new Error('Payment token expired or unavailable');
+  return { snap_token: data.snap_token, registration_id: data.id };
 }
 
 /**
@@ -475,6 +493,7 @@ module.exports = {
   getEvent,
   getMyRegistration,
   getUserEventRegistrations,
+  getEventSnapToken,
   registerForEvent,
   cancelMyRegistration,
   listClubEvents,

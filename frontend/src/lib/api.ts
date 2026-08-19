@@ -203,6 +203,9 @@ export const api = {
 
     cancelRegistration: (id: string) =>
       apiFetch<{ cancelled: boolean }>(`/api/events/${id}/my-registration`, { method: "DELETE" }),
+
+    snapToken: (id: string) =>
+      apiFetch<{ snap_token: string; registration_id: string }>(`/api/events/${id}/snap-token`),
   },
 
   // ─── Admin Events ───────────────────────────────────────────────────────────

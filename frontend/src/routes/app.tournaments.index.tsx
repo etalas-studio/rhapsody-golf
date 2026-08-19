@@ -7,8 +7,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatIDR } from "@/lib/mockData";
 import { useEvents, useMyEventRegistrations } from "@/lib/useApi";
 import type { ApiEvent, ApiEventRegistration } from "@/lib/api";
-import { Trophy, CalendarDays, Users, ChevronRight, MapPin, UserCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api";
+import { openSnap } from "@/lib/snap";
+import { Trophy, CalendarDays, Users, ChevronRight, MapPin, UserCircle, CreditCard } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { format, parseISO, isThisWeek } from "date-fns";
 
 export const Route = createFileRoute("/app/tournaments/")({
@@ -148,7 +152,12 @@ function AppEvents() {
       {/* Registration detail sheet */}
       <Sheet open={!!selectedReg} onOpenChange={(o) => { if (!o) setSelectedReg(null); }}>
         <SheetContent side="bottom" className="h-auto max-h-[80vh] overflow-y-auto rounded-t-2xl max-w-md mx-auto left-0 right-0 px-5">
-          {selectedReg && <RegDetail reg={selectedReg} />}
+          {selectedReg && (
+            <RegDetail
+              reg={selectedReg}
+              onPaid={() => { setSelectedReg(null); }}
+            />
+          )}
         </SheetContent>
       </Sheet>
     </MobileShell>
@@ -232,8 +241,30 @@ function RegCard({ reg: r, onClick }: { reg: ApiEventRegistration; onClick: () =
 
 /* ── Registration detail inside sheet ───────────────────────────────────── */
 
-function RegDetail({ reg: r }: { reg: ApiEventRegistration }) {
+function RegDetail({ reg: r, onPaid }: { reg: ApiEventRegistration; onPaid?: () => void }) {
   const event = r.events;
+  const [paying, setPaying] = useState(false);
+
+  async function handlePayNow() {
+    setPaying(true);
+    try {
+      const { snap_token } = await api.events.snapToken(r.tournament_id);
+      openSnap(snap_token, {
+        onSuccess: () => { toast.success("Payment successful! Registration confirmed."); onPaid?.(); },
+        onPending: () => { toast.info("Payment pending, will be confirmed automatically."); onPaid?.(); },
+        onError: () => { toast.error("Payment failed."); setPaying(false); },
+        onClose: () => { setPaying(false); },
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load payment";
+      if (msg.includes("expired") || msg.includes("unavailable")) {
+        toast.error("Payment link expired. Please register again.");
+      } else {
+        toast.error(msg);
+      }
+      setPaying(false);
+    }
+  }
 
   return (
     <div className="space-y-5 pb-4">
@@ -297,6 +328,14 @@ function RegDetail({ reg: r }: { reg: ApiEventRegistration }) {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Pay Now — only for pending payment */}
+      {r.status === "PendingPayment" && (
+        <Button className="w-full gap-2" onClick={handlePayNow} disabled={paying}>
+          <CreditCard className="h-4 w-4" />
+          {paying ? "Loading payment..." : `Pay ${formatIDR(r.total_fee)}`}
+        </Button>
       )}
     </div>
   );

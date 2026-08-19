@@ -6,6 +6,7 @@ const {
   getEvent,
   getMyRegistration,
   getUserEventRegistrations,
+  getEventSnapToken,
   registerForEvent,
   cancelMyRegistration,
 } = require('../services/event.service');
@@ -78,6 +79,21 @@ router.get('/:id/my-registration', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error('GET /events/:id/my-registration error', { message: err.message });
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/events/:id/snap-token
+ * Returns stored snap_token for a PendingPayment registration (resume payment).
+ */
+router.get('/:id/snap-token', requireAuth, async (req, res) => {
+  try {
+    const result = await getEventSnapToken({ eventId: req.params.id, userId: req.userId });
+    res.json(result);
+  } catch (err) {
+    const code = err.message.includes('expired') || err.message.includes('unavailable') ? 410
+      : err.message.includes('No pending') ? 404 : 500;
+    res.status(code).json({ error: err.message });
   }
 });
 
