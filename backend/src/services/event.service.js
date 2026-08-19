@@ -139,8 +139,8 @@ async function registerForEvent({ eventId, userId, players }) {
 
   if (existing) {
     if (existing.status === 'PendingPayment') {
-      // Abandoned payment — delete stale row so unique (tournament_id, user_id) is freed
-      await supabase.from('event_registrations').delete().eq('id', existing.id);
+      // Abandoned payment — cancel stale registration and allow re-registration
+      await supabase.from('event_registrations').update({ status: 'Cancelled' }).eq('id', existing.id);
     } else {
       throw new Error('Already registered for this event');
     }
@@ -194,7 +194,7 @@ async function registerForEvent({ eventId, userId, players }) {
   }
 
   // ── 6. Init Midtrans Snap token
-  const orderId = `EVT-${reg.id}-${Date.now()}`;
+  const orderId = `EVT-${reg.id.replace(/-/g, '').substring(0, 16)}-${Date.now()}`;
   const { data: user } = await supabase
     .from('users')
     .select('name, email, phone')
