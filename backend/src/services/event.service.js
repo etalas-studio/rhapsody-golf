@@ -137,7 +137,17 @@ async function registerForEvent({ eventId, userId, players }) {
     .in('status', ['PendingPayment', 'Confirmed', 'CheckedIn'])
     .maybeSingle();
 
-  if (existing) throw new Error('Already registered for this event');
+  if (existing) {
+    if (existing.status === 'PendingPayment') {
+      // Abandoned payment — cancel stale registration and allow re-registration
+      await supabase
+        .from('event_registrations')
+        .update({ status: 'Cancelled' })
+        .eq('id', existing.id);
+    } else {
+      throw new Error('Already registered for this event');
+    }
+  }
 
   // ── 3. Quota check (count confirmed+checkedIn participants)
   const slotsUsed = await getSlotsUsed(eventId);
